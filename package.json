@@ -9,15 +9,20 @@
     "dev": "nodemon --exec ts-node src/app.ts",
     "build": "tsc"
   },
+  "engines": {
+    "node": ">= 14.x"
+  },
   "dependencies": {
     "axios": "^1.7.9",
     "cheerio": "^1.0.0-rc.12",
+    "dotenv": "^16.4.5",
+    "https-proxy-agent": "^7.0.6",
     "koa": "^2.15.3",
-    "queue": "^6.0.2",
-    "dotenv": "^16.4.5"
+    "queue": "^6.0.2"
   },
   "devDependencies": {
     "@types/koa": "^2.15.0",
+    "@types/node": "^17.0.8",
     "ts-node": "10.9.2",
     "ts-node-dev": "2.0.0",
     "tsconfig-paths": "^3.12.0",
