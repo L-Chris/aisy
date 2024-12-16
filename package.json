@@ -2,7 +2,7 @@
   "name": "aisearch",
   "version": "1.0.0",
   "license": "MIT",
-  "description": "A Tiny AI Search Engine in JavaScript",
+  "description": "A Tiny AI Search Engine in TypeScript",
   "main": "app.ts",
   "scripts": {
     "start": "ts-node src/app.ts",

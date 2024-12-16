@@ -3,12 +3,17 @@ import axios from 'axios'
 import { HttpsProxyAgent } from "https-proxy-agent"
 import { getErrorMessage } from './utils'
 
-export const httpsAgent = new HttpsProxyAgent('http://127.0.0.1:7890')
-
 export class Browser {
   private baseURL = 'https://www.bing.com/search'
+  private proxy?: string
+  private httpsAgent?: HttpsProxyAgent<string>
 
-  constructor () {}
+  constructor (options: { proxy?: string } = {}) {
+    this.proxy = options.proxy
+    if (this.proxy) {
+      this.httpsAgent = new HttpsProxyAgent(this.proxy)
+    }
+  }
 
   private async request(url: string) {
     try {
@@ -20,7 +25,7 @@ export class Browser {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         },
-        httpsAgent
+        httpsAgent: this.httpsAgent
       })
   
       return res.data as string

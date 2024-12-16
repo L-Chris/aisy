@@ -7,9 +7,11 @@ import { Browser } from './browser'
 export class Searcher {
   private browser: Browser
   private llm: LLM
-  constructor () {
-    this.browser = new Browser()
+  private proxy?: string
+  constructor (options: { proxy?: string } = {}) {
+    this.browser = new Browser({ proxy: options.proxy || '' })
     this.llm = new LLM()
+    this.proxy = options.proxy
   }
 
   /**
@@ -68,8 +70,14 @@ export class Searcher {
   async answer (question: string, pages: Page[], parentResponses: QuestionAnswer[]) {
     const prompt = PROMPT.ANSWER
     const res = await this.llm.generate(
-      `${prompt}\n## 已知\n${JSON.stringify(parentResponses)}\n## 输入\n${JSON.stringify(pages)}\n## 问题\n${question}`
-    )
+      `${prompt}
+## 已知
+${parentResponses.map(r => `- 问题：${r.content}\n- 回答：${r.answer}`).join('\n---\n')}
+## 当前问题
+${question}
+## 当前问题的搜索结果
+${pages.map(p => `- 标题：${p.title}\n- 链接：${p.url}\n- 内容：${p.content}`).join('\n---\n')}
+`)
     return res as string
   }
 }

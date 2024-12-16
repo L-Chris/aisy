@@ -1,15 +1,12 @@
 import dotenv from 'dotenv'
-import { Searcher } from './searcher'
-import { Browser } from './browser'
+import { SearchGraph } from './search-graph'
 
 dotenv.config()
 
 async function main () {
-  // const browser = new Browser()
-  // const res = await browser.search('国富论')
-  const searcher = new Searcher()
-  const res = await searcher.run('书籍《有聊》的作者？', [])
-  console.log(res.answer)
+  const searchGraph = new SearchGraph({ proxy: 'http://127.0.0.1:7890' })
+  const res = await searchGraph.plan('书籍《有聊》的作者的微博主页地址是？')
+  console.log(res)
 }
 
 main()
