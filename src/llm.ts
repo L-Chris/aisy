@@ -1,13 +1,15 @@
 import axios from 'axios'
+import { getErrorMessage } from './utils'
 
 export class LLM {
   constructor () {}
 
   async generate (prompt: string) {
-    const res = await axios({
-      method: 'POST',
-      url: 'https://api.siliconflow.cn/v1/chat/completions',
-      headers: {
+    try {
+      const res = await axios({
+        method: 'POST',
+        url: 'https://api.siliconflow.cn/v1/chat/completions',
+        headers: {
         Authorization: `Bearer ${process.env.API_KEY}`,
         'Content-Type': 'application/json'
       },
@@ -32,7 +34,11 @@ export class LLM {
 
     const data = res.data as LLMResponse
 
-    return data.choices[0].message.content
+      return data.choices[0].message.content
+    } catch (e) {
+      console.error(`[LLM] Error:`, getErrorMessage(e))
+      return ''
+    }
   }
 }
 

@@ -40,8 +40,6 @@ export class Browser {
       keyword.split(/\s+/g).join('+')
     )}`)
 
-    fs.writeFileSync('./data/search_result.html', res)
-
     const regex = /\d+\.\s+\[([^\]]+)\]\(([^)]+)\)/g;
     const links = [];
     let match;

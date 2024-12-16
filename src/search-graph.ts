@@ -35,10 +35,10 @@ class SearchGraph {
 
     async plan(content: string) {
         console.log('\n[Plan] Starting with question:', content);
-        const res = await this.llm.generate(
-            `${PROMPT.PLAN}\n## 问题\n${content}\n`
-        )
         try {
+            const res = await this.llm.generate(
+                `${PROMPT.PLAN}\n## 问题\n${content}\n`
+            )
             console.log('[Plan] LLM Response:', res);
             this.logAndSave('plan_llm_response', { question: content, response: res });
             
@@ -85,7 +85,7 @@ class SearchGraph {
         
         const promises = nodes.map(async (node) => {
             console.log(`[ProcessNodes] Creating node for content:`, node.content);
-            const newNode = this.createNode(node.content, parentId)
+            const newNode = this.addNode(node.content, parentId)
             
             if (Array.isArray(node.children) && node.children.length > 0) {
                 console.log(`[ProcessNodes] Node ${newNode.id} has ${node.children.length} children`);
@@ -102,7 +102,7 @@ class SearchGraph {
         console.log(`[ProcessNodes] Completed all nodes for parent:`, parentId);
     }
 
-    private createNode(nodeContent: string, parentId: string): Node {
+    private addNode(nodeContent: string, parentId: string): Node {
         const node: Node = {
             id: getUUID(),
             content: nodeContent,

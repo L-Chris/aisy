@@ -53,10 +53,6 @@ export class Searcher {
     await queue.start()
 
     const pages = (queue.queue.results || []).map(_ => _?.[0]) as Page[]
-    fs.writeFileSync(
-      `./data/search_result_${Date.now()}.json`,
-      JSON.stringify(pages, null, 2)
-    )
 
     const answer = await this.answer(content, pages, parentResponses)
 
