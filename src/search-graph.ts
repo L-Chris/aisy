@@ -2,6 +2,8 @@ import { Page, QuestionAnswer, Searcher } from './searcher';
 import { LLM } from './llm';
 import { getErrorMessage, getUUID } from './utils';
 import { PROMPT } from './prompts';
+import fs from 'fs';
+import path from 'path';
 
 class SearchGraph {
     private nodes: Map<string, Node>;
@@ -9,6 +11,7 @@ class SearchGraph {
     private llm: LLM
     private proxy?: string
     private i: number
+    private logDir: string;
 
     constructor(options: { proxy?: string } = {}) {
         this.nodes = new Map();
@@ -16,25 +19,47 @@ class SearchGraph {
         this.llm = new LLM()
         this.proxy = options.proxy
         this.i = 0
+        this.logDir = path.join(process.cwd(), 'logs');
+        // 确保日志目录存在
+        if (!fs.existsSync(this.logDir)) {
+            fs.mkdirSync(this.logDir, { recursive: true });
+        }
+    }
+
+    private logAndSave(type: string, data: any) {
+        const timestamp = new Date().getTime();
+        const logFile = path.join(this.logDir, `${type}_${timestamp}.json`);
+        fs.writeFileSync(logFile, JSON.stringify(data, null, 2));
+        console.log(`[${type}] Saved to ${logFile}`);
     }
 
     async plan(content: string) {
+        console.log('\n[Plan] Starting with question:', content);
         const res = await this.llm.generate(
-`${PROMPT.PLAN}
-## 问题
-${content}
-`
+            `${PROMPT.PLAN}\n## 问题\n${content}\n`
         )
         try {
+            console.log('[Plan] LLM Response:', res);
+            this.logAndSave('plan_llm_response', { question: content, response: res });
+            
             const qs = JSON.parse(res)
             const nodes = Array.isArray(qs?.nodes) ? qs.nodes as RawNode[] : []
+            console.log('[Plan] Parsed nodes structure:', JSON.stringify(nodes, null, 2));
+            
             const root = this.addRootNode(content)
+            console.log('[Plan] Root node created:', root.id);
             
-            // 递归处理所有节点并等待所有子节点完成
             await this.processNodes(nodes, root.id)
+            console.log('[Plan] All nodes processed');
             
-            // 处理根节点
             await this.processRootNode(root.id)
+            console.log('[Plan] Root node processed');
+            
+            // 保存最终的搜索图结构
+            this.logAndSave('final_search_graph', {
+                nodes: Array.from(this.nodes.entries()),
+                edges: Array.from(this.edges.entries())
+            });
             
             return {
                 nodes: this.nodes,
@@ -42,7 +67,11 @@ ${content}
                 answer: root.answer || ''
             }
         } catch (error) {
-            console.error(`[plan] error ${getErrorMessage(error)}`)
+            console.error(`[Plan] Error:`, error);
+            this.logAndSave('plan_error', {
+                error: getErrorMessage(error),
+                question: content
+            });
             return {
                 nodes: new Map(),
                 edges: new Map(),
@@ -51,29 +80,28 @@ ${content}
         }
     }
 
-    // 递归处理节点
     private async processNodes(nodes: RawNode[], parentId: string) {
-        // 并行处理同层节点
+        console.log(`\n[ProcessNodes] Processing ${nodes.length} nodes for parent:`, parentId);
+        
         const promises = nodes.map(async (node) => {
-            // 先创建节点，但不执行搜索
+            console.log(`[ProcessNodes] Creating node for content:`, node.content);
             const newNode = this.createNode(node.content, parentId)
             
-            // 如果有子节点，先处理所有子节点
             if (Array.isArray(node.children) && node.children.length > 0) {
+                console.log(`[ProcessNodes] Node ${newNode.id} has ${node.children.length} children`);
                 await this.processNodes(node.children, newNode.id)
             }
             
-            // 等待所有子节点处理完成后，再执行当前节点的搜索
+            console.log(`[ProcessNodes] Executing node ${newNode.id}`);
             await this.executeNodeWithChildren(newNode.id)
             
             return newNode
         })
 
-        // 等待所有同层节点处理完成
         await Promise.all(promises)
+        console.log(`[ProcessNodes] Completed all nodes for parent:`, parentId);
     }
 
-    // 创建节点但不执行搜索
     private createNode(nodeContent: string, parentId: string): Node {
         const node: Node = {
             id: getUUID(),
@@ -88,97 +116,121 @@ ${content}
         return node
     }
 
-    // 执行节点搜索，包括处理其子节点的答案
     private async executeNodeWithChildren(nodeId: string) {
+        console.log(`\n[ExecuteNode] Starting execution for node:`, nodeId);
         const node = this.nodes.get(nodeId)
-        if (!node) return
+        if (!node) {
+            console.error(`[ExecuteNode] Node ${nodeId} not found`);
+            return;
+        }
 
-        // 获取所有子节点
         const childrenIds = this.getChildren(nodeId)
+        console.log(`[ExecuteNode] Node ${nodeId} has ${childrenIds.length} children`);
+        
         const children = childrenIds
             .map(id => this.nodes.get(id))
             .filter((node): node is Node => !!node)
 
-        // 确保所有子节点都已完成
         const allFinished = children.every(node => 
             node.state === NODE_STATE.FINISHED || 
             node.state === NODE_STATE.ERROR
         )
 
         if (!allFinished) {
-            console.error(`Node ${nodeId}: Some child nodes are not finished`)
-            return
+            console.error(`[ExecuteNode] Node ${nodeId}: Some child nodes are not finished`);
+            this.logAndSave(`node_${nodeId}_children_error`, {
+                nodeId,
+                children: children.map(c => ({
+                    id: c.id,
+                    state: c.state,
+                    content: c.content
+                }))
+            });
+            return;
         }
 
-        // 收集所有子节点的答案作为上下文
-        const childResponses: QuestionAnswer[] = children
+        const childResponses = children
             .filter(node => node.answer)
             .map(node => ({
                 content: node.content,
                 answer: node.answer || ''
             }))
 
-        // 执行当前节点的搜索
+        console.log(`[ExecuteNode] Executing search for node ${nodeId}`);
         node.state = NODE_STATE.RUNNING
+        
         try {
             const searcher = new Searcher({ proxy: this.proxy });
             const response = await searcher.run(node.content, childResponses)
             node.answer = response.answer
             node.pages = response.pages
             node.state = NODE_STATE.FINISHED
+            
+            console.log(`[ExecuteNode] Node ${nodeId} completed successfully`);
+            this.logAndSave(`node_${nodeId}_result`, {
+                nodeId,
+                content: node.content,
+                answer: node.answer,
+                pages: node.pages
+            });
         } catch (error) {
-            console.error(`[executeNodeWithChildren] error for node ${nodeId}: ${error}`);
+            console.error(`[ExecuteNode] Error for node ${nodeId}:`, error);
             node.state = NODE_STATE.ERROR
+            this.logAndSave(`node_${nodeId}_error`, {
+                nodeId,
+                error: getErrorMessage(error),
+                content: node.content
+            });
         }
     }
 
-    // 处理根节点
     private async processRootNode(rootId: string) {
+        console.log('\n[ProcessRoot] Starting root node processing');
         const root = this.nodes.get(rootId)
         if (!root) return
 
-        // 获取所有直接子节点
         const childrenIds = this.getChildren(rootId)
         const children = childrenIds
             .map(id => this.nodes.get(id))
             .filter((node): node is Node => !!node)
 
-        // 确保所有子节点都已完成
         const allFinished = children.every(node => 
             node.state === NODE_STATE.FINISHED || 
             node.state === NODE_STATE.ERROR
         )
 
         if (!allFinished) {
-            console.error('Root node: Some child nodes are not finished')
-            return
+            console.error('[ProcessRoot] Some child nodes are not finished');
+            this.logAndSave('root_node_error', {
+                children: children.map(c => ({
+                    id: c.id,
+                    state: c.state,
+                    content: c.content
+                }))
+            });
+            return;
         }
 
-        // 收集所有子节点的答案
-        const responses: QuestionAnswer[] = children
+        const responses = children
             .filter(node => node.answer)
             .map(node => ({
                 content: node.content,
                 answer: node.answer || ''
             }))
 
-        // 生成最终答案
         const finalAnswer = await this.llm.generate(
-            `${PROMPT.SUMMARY}
-## 原始问题
-${root.content}
-## 子问题回答
-${responses.map((r, i) => `[${i}] 问题：${r.content}\n回答：${r.answer}`).join('\n---\n')}
-`
+            `${PROMPT.SUMMARY}\n## 原始问题\n${root.content}\n## 子问题回答\n${responses.map((r, i) => `[${i}] 问题：${r.content}\n回答：${r.answer}`).join('\n---\n')}`
         )
 
         root.answer = finalAnswer
         root.state = NODE_STATE.FINISHED
+        console.log('[ProcessRoot] Root node processing completed');
+        this.logAndSave('root_node_result', {
+            answer: finalAnswer,
+            childResponses: responses
+        });
     }
 
-    /**
-     * 添加根节点
-     */
     addRootNode(nodeContent: string) {
         const node: Node = {
             id: 'root',
@@ -193,9 +245,6 @@ ${responses.map((r, i) => `[${i}] 问题：${r.content}\n回答：${r.answer}`).
         return node
     }
 
-    /**
-     * 添加边（建立父子关系）
-     */
     addEdge(startNode: string, endNode: string) {
         const edges = this.edges.get(startNode) || [];
         const edge = {
@@ -207,24 +256,15 @@ ${responses.map((r, i) => `[${i}] 问题：${r.content}\n回答：${r.answer}`).
         return edge
     }
 
-    /**
-     * 获取节点信息
-     */
     getNode(nodeName: string): Node | undefined {
         return this.nodes.get(nodeName);
     }
 
-    /**
-     * 获取子节点列表
-     */
     getChildren(nodeName: string): string[] {
         const edges = this.edges.get(nodeName) || [];
         return edges.map(edge => edge.name);
     }
 
-    /**
-     * 获取父节点列表
-     */
     getParents(nodeName: string): string[] {
         const parents: string[] = [];
         this.edges.forEach((edges, startNode) => {
@@ -235,22 +275,18 @@ ${responses.map((r, i) => `[${i}] 问题：${r.content}\n回答：${r.answer}`).
         return parents;
     }
 
-    /**
-     * 重置图
-     */
     reset(): void {
         this.nodes.clear();
         this.edges.clear();
     }
 }
 
-// 定义类型
 type NodeType = 'root' | 'searcher';
 
 interface Node {
     id: string;
-    type: NodeType; // 节点类型
-    content: string; // 节点对应的问题
+    type: NodeType;
+    content: string;
     answer?: string;
     pages?: Page[];
     state: NODE_STATE;
