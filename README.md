@@ -1,60 +1,60 @@
 # 🔍 AI Search Engine
 
-一个强大的 AI 驱动的智能搜索引擎，能够将复杂问题分解为子问题并递归搜索答案。
+A powerful AI-driven search engine capable of breaking down complex questions into sub-questions and recursively searching for answers.
 
-## ✨ 特性
+## ✨ Features
 
-- 🤖 智能问题分解 - 自动将复杂查询分解为可搜索的子问题
-- 🌲 树状搜索结构 - 通过构建问题树实现深度搜索
-- 🔄 并行搜索处理 - 支持多线程并发搜索提高效率
-- 🧠 智能答案合成 - 利用 AI 总结归纳最终答案
-- 🛡️ 内置反爬虫保护 - 智能请求调度避免被封禁
-- ⚡ 高性能 - 页面池复用和智能缓存机制
+- 🤖 Smart Question Decomposition - Automatically breaks complex queries into searchable sub-questions
+- 🌲 Tree Search Structure - Implements deep search through question tree construction
+- 🔄 Parallel Search Processing - Supports multi-threaded concurrent search for improved efficiency
+- 🧠 Intelligent Answer Synthesis - Uses AI to summarize and synthesize final answers
+- 🛡️ Built-in Anti-Crawler Protection - Smart request scheduling to avoid bans
+- ⚡ High Performance - Page pool reuse and intelligent caching mechanism
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 安装
+### Install
 
 ```bash
 npm install aisy
 ```
 
-### 基础使用
+### Basic Usage
 
 ```typescript
 import { SearchGraph } from 'aisy'
 const search = new SearchGraph({
-  proxy: 'http://127.0.0.1:7890' // 可选代理
+  proxy: 'http://127.0.0.1:7890' // Optional proxy
 })
-const result = await search.plan('复杂问题...')
+const result = await search.plan('Complex problem...')
 console.log(result.answer)
 ```
 
-### 环境变量配置
+### Environment Variable Configuration
 
 ```bash
-LLM_BASEURL=你的LLM API地址
-LLM_API_KEY=你的API密钥
-LLM_MODEL=模型名称
+LLM_BASEURL=Your LLM API address
+LLM_API_KEY=Your API key
+LLM_MODEL=Model name
 ```
 
-## 📖 API 文档
+## 📖 API Documentation 
 
 ### SearchGraph
 
-主要的搜索引擎类,用于处理复杂问题的分解与搜索。
+The main search engine class, used to handle the decomposition and search of complex problems.
 
 ```typescript
 typescript
 interface SearchOptions {
-  proxy?: string // 代理服务器
-  maxConcurrency?: number // 最大并发数
-  timeout?: number // 超时时间(ms)
-  maxResults?: number // 每次搜索最大结果数
+  proxy?: string // Proxy server
+  maxConcurrency?: number // Maximum concurrency
+  timeout?: number // Timeout (ms)
+  maxResults?: number // Maximum number of results per search
 }
 class SearchGraph {
   constructor(options?: SearchOptions)
-  // 分析问题并执行搜索
+  // Analyze the problem and perform the search
   async plan(question: string): Promise<{
     answer: string
     pages: Page[]
@@ -64,7 +64,7 @@ class SearchGraph {
 
 ### Searcher
 
-执行单次搜索的类。
+The class that performs a single search.
 
 ```typescript
 interface Page {
@@ -75,7 +75,7 @@ interface Page {
 }
 class Searcher {
   constructor(options?: SearchOptions)
-  // 执行搜索
+  // Perform a search
   async run(content: string): Promise<{
     content: string
     pages: Page[]
@@ -84,11 +84,11 @@ class Searcher {
 }
 ```
 
-## 🛠️ 进阶配置
+## 🛠️ Advanced Configuration
 
-### 自定义搜索引擎
+### Custom Search Engine
 
-默认使用必应搜索,你可以通过配置修改搜索引擎:
+By default, Bing is used for searching. You can modify the search engine by configuring:
 
 ```typescript
 const search = new SearchGraph({
@@ -96,35 +96,35 @@ const search = new SearchGraph({
 })
 ```
 
-### 调整并发与超时
+### Adjust Concurrency and Timeout
 
 ```typescript
 const search = new SearchGraph({
-  maxConcurrency: 5, // 最大5个并发请求
-  timeout: 20000, // 20秒超时
-  maxResults: 10 // 每次搜索返回10条结果
+  maxConcurrency: 5, // Maximum 5 concurrent requests
+  timeout: 20000, // 20 seconds timeout
+  maxResults: 10 // 10 results per search
 })
 ```
 
-## 📝 示例
+## 📝 Examples
 
 ```typescript
-// 复杂问题分解
-const result = await search.plan('解释量子纠缠的概念以及它在量子计算中的应用')
-// 获取特定信息
+// Complex problem decomposition
+const result = await search.plan('Explain the concept of quantum entanglement and its application in quantum computing')
+// Get specific information
 const result = await search.plan(
-  '2024年春节档电影票房最高的是哪部?具体数据是多少?'
+  'Which movie had the highest box office in the Spring Festival of 2024? What is the specific data?'
 )
-// 多步骤查询
+// Multi-step query
 const result = await search.plan(
-  '苹果公司最新财报中营收多少?相比去年同期增长了多少?'
+  'What is the revenue of Apple\'s latest financial report? How much did it increase compared to last year?'
 )
 ```
 
-## 🤝 贡献
+## 🤝 Contribution
 
-欢迎提交 issue 和 PR!
+Welcome to submit issues and PRs!
 
-## 📄 许可证
+## 📄 License
 
 MIT © [Jiahui.Liang](LICENSE)
