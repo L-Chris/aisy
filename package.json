@@ -1,13 +1,20 @@
 {
-  "name": "aisearch",
-  "version": "1.0.0",
-  "license": "MIT",
-  "description": "A Tiny AI Search Engine in TypeScript",
-  "main": "app.ts",
+  "name": "aisy",
+  "version": "0.1.0",
+  "description": "AISY：An intelligent AI-powered search engine that breaks down complex queries into sub-questions",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "start": "ts-node src/app.ts",
-    "dev": "nodemon --exec ts-node src/app.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "test": "jest",
+    "lint": "eslint src --ext .ts"
   },
   "engines": {
     "node": ">= 14.x"
@@ -28,5 +35,12 @@
     "ts-node-dev": "2.0.0",
     "tsconfig-paths": "^3.12.0",
     "typescript": "^4.9.5"
-  }
+  },
+  "keywords": [
+    "ai",
+    "search-engine",
+    "typescript",
+    "nlp",
+    "web-scraping"
+  ]
 }

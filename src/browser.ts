@@ -7,10 +7,16 @@ export class Browser {
   private static instance?: Browser
   private static browserInstance?: PuppeteerBrowser
   private static pagePool: Page[] = []
-  private static readonly MAX_PAGES = 3
+  private static MAX_PAGES = 3
 
-  constructor(options: { proxy?: string } = {}) {
+  constructor(options: { 
+    proxy?: string,
+    maxPages?: number,
+    baseURL?: string 
+  } = {}) {
     this.proxy = options.proxy
+    this.baseURL = options.baseURL || 'https://www.bing.com/search'
+    Browser.MAX_PAGES = options.maxPages || 3
     if (!Browser.instance) {
       Browser.instance = this
     }

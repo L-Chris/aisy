@@ -1,7 +1,7 @@
 import dotenv from 'dotenv'
 import fs from 'fs'
 import path from 'path'
-import { SearchGraph } from './search-graph'
+import { SearchGraph } from '../src/search-graph'
 
 dotenv.config()
 

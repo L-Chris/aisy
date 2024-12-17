@@ -6,9 +6,20 @@ import { Browser } from './browser'
 export class Searcher {
   private browser: Browser
   private llm: LLM
-  constructor (options: { proxy?: string } = {}) {
-    this.browser = new Browser({ proxy: options.proxy || '' })
+  private maxConcurrency: number
+  private timeout: number
+  private maxResults: number
+  constructor (options: { 
+    proxy?: string,
+    maxConcurrency?: number,
+    timeout?: number,
+    maxResults?: number
+  } = {}) {
+    this.browser = new Browser({ proxy: options.proxy })
     this.llm = new LLM()
+    this.maxConcurrency = options.maxConcurrency || 2
+    this.timeout = options.timeout || 10000
+    this.maxResults = options.maxResults || 5
   }
 
   /**
@@ -20,15 +31,15 @@ export class Searcher {
   ) {
     const queue = createQueue({
       name: 'fetch:content',
-      concurrency: 2,
-      timeout: 10000,
+      concurrency: this.maxConcurrency,
+      timeout: this.timeout,
       showProgress: true
     })
 
     // 默认取前3个链接并进行爬虫
     const links = (await this.browser.search(content))
       .filter(_ => _.url)
-      .slice(0, 5)
+      .slice(0, this.maxResults)
       .map((_, i) => ({ ..._, id: i }))
 
     if (links.length === 0) {
