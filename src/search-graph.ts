@@ -87,22 +87,20 @@ class SearchGraph {
     private async processNodes(nodes: RawNode[], parentId: string) {
         console.log(`\n[ProcessNodes] Processing ${nodes.length} nodes for parent:`, parentId);
         
-        const promises = nodes.map(async (node) => {
+        // 然后串行处理每个子节点
+        for (const node of nodes) {
             console.log(`[ProcessNodes] Creating node for content:`, node.content);
-            const newNode = this.addNode(node.content, parentId)
+            const newNode = this.addNode(node.content, parentId);
+            
+            console.log(`[ProcessNodes] Executing node ${newNode.id}`);
+            await this.executeNode(newNode.id);
             
             if (Array.isArray(node.children) && node.children.length > 0) {
                 console.log(`[ProcessNodes] Node ${newNode.id} has ${node.children.length} children`);
-                await this.processNodes(node.children, newNode.id)
+                await this.processNodes(node.children, newNode.id);
             }
-            
-            console.log(`[ProcessNodes] Executing node ${newNode.id}`);
-            await this.executeNodeWithChildren(newNode.id)
-            
-            return newNode
-        })
-
-        await Promise.all(promises)
+        }
+        
         console.log(`[ProcessNodes] Completed all nodes for parent:`, parentId);
     }
 
@@ -120,66 +118,45 @@ class SearchGraph {
         return node
     }
 
-    private async executeNodeWithChildren(nodeId: string) {
+    private async executeNode(nodeId: string) {
         console.log(`\n[ExecuteNode] Starting execution for node:`, nodeId);
-        const node = this.nodes.get(nodeId)
+        const node = this.nodes.get(nodeId);
         if (!node) {
             console.error(`[ExecuteNode] Node ${nodeId} not found`);
             return;
         }
 
-        const childrenIds = this.getChildren(nodeId)
-        console.log(`[ExecuteNode] Node ${nodeId} has ${childrenIds.length} children`);
-        
-        const children = childrenIds
+        // 获取所有祖先节点的问答信息
+        const ancestors = this.getAllAncestors(nodeId);
+        const ancestorResponses = ancestors
             .map(id => this.nodes.get(id))
-            .filter((node): node is Node => !!node)
-
-        const allFinished = children.every(node => 
-            node.state === NODE_STATE.FINISHED || 
-            node.state === NODE_STATE.ERROR
-        )
-
-        if (!allFinished) {
-            console.error(`[ExecuteNode] Node ${nodeId}: Some child nodes are not finished`);
-            this.logAndSave(`node_${nodeId}_children_error`, {
-                nodeId,
-                children: children.map(c => ({
-                    id: c.id,
-                    state: c.state,
-                    content: c.content
-                }))
-            });
-            return;
-        }
-
-        const childResponses = children
-            .filter(node => node.answer)
+            .filter((node): node is Node => !!node && !!node.answer)
             .map(node => ({
                 content: node.content,
                 answer: node.answer || ''
-            }))
+            }));
 
         console.log(`[ExecuteNode] Executing search for node ${nodeId}`);
-        node.state = NODE_STATE.RUNNING
+        node.state = NODE_STATE.RUNNING;
         
         try {
             const searcher = new Searcher({ proxy: this.proxy });
-            const response = await searcher.run(node.content, childResponses)
-            node.answer = response.answer
-            node.pages = response.pages
-            node.state = NODE_STATE.FINISHED
+            const response = await searcher.run(node.content, ancestorResponses);
+            node.answer = response.answer;
+            node.pages = response.pages;
+            node.state = NODE_STATE.FINISHED;
             
             console.log(`[ExecuteNode] Node ${nodeId} completed successfully`);
             this.logAndSave(`node_${nodeId}_result`, {
                 nodeId,
                 content: node.content,
                 answer: node.answer,
-                pages: node.pages
+                pages: node.pages,
+                ancestorResponses
             });
         } catch (error) {
             console.error(`[ExecuteNode] Error for node ${nodeId}:`, error);
-            node.state = NODE_STATE.ERROR
+            node.state = NODE_STATE.ERROR;
             this.logAndSave(`node_${nodeId}_error`, {
                 nodeId,
                 error: getErrorMessage(error),
@@ -188,25 +165,44 @@ class SearchGraph {
         }
     }
 
+    // 新增方法：获取所有祖先节点（从直接父节点到根节点）
+    private getAllAncestors(nodeId: string): string[] {
+        const ancestors: string[] = [];
+        let currentId = nodeId;
+        
+        while (true) {
+            const parents = this.getParents(currentId);
+            if (parents.length === 0) break;
+            
+            // 在这个实现中，每个节点只有一个父节点
+            const parentId = parents[0];
+            ancestors.push(parentId);
+            currentId = parentId;
+        }
+        
+        return ancestors;
+    }
+
     private async processRootNode(rootId: string) {
         console.log('\n[ProcessRoot] Starting root node processing');
         const root = this.nodes.get(rootId)
         if (!root) return
 
-        const childrenIds = this.getChildren(rootId)
-        const children = childrenIds
+        // 收集所有子孙节点
+        const allDescendants = this.getAllDescendants(rootId);
+        const descendants = allDescendants
             .map(id => this.nodes.get(id))
-            .filter((node): node is Node => !!node)
+            .filter((node): node is Node => !!node);
 
-        const allFinished = children.every(node => 
+        const allFinished = descendants.every(node => 
             node.state === NODE_STATE.FINISHED || 
             node.state === NODE_STATE.ERROR
         )
 
         if (!allFinished) {
-            console.error('[ProcessRoot] Some child nodes are not finished');
+            console.error('[ProcessRoot] Some descendant nodes are not finished');
             this.logAndSave('root_node_error', {
-                children: children.map(c => ({
+                descendants: descendants.map(c => ({
                     id: c.id,
                     state: c.state,
                     content: c.content
@@ -215,7 +211,7 @@ class SearchGraph {
             return;
         }
 
-        const responses = children
+        const responses = descendants
             .filter(node => node.answer)
             .map(node => ({
                 content: node.content,
@@ -223,7 +219,7 @@ class SearchGraph {
             }))
 
         const finalAnswer = await this.llm.generate(
-            `${PROMPT.SUMMARY}\n## 原始问题\n${root.content}\n## 子问题回答\n${responses.map((r, i) => `[${i}] 问题：${r.content}\n回答：${r.answer}`).join('\n---\n')}`
+            `${PROMPT.SUMMARY}\n## 原始问题\n${root.content}\n## 所有子问题回答\n${responses.map((r, i) => `[${i}] 问题：${r.content}\n回答：${r.answer}`).join('\n---\n')}`
         )
 
         root.answer = finalAnswer
@@ -231,8 +227,21 @@ class SearchGraph {
         console.log('[ProcessRoot] Root node processing completed');
         this.logAndSave('root_node_result', {
             answer: finalAnswer,
-            childResponses: responses
+            descendantResponses: responses
         });
+    }
+
+    // 新增方法：递归获取所有子孙节点
+    private getAllDescendants(nodeId: string): string[] {
+        const descendants: string[] = [];
+        const childrenIds = this.getChildren(nodeId);
+        
+        for (const childId of childrenIds) {
+            descendants.push(childId);
+            descendants.push(...this.getAllDescendants(childId));
+        }
+        
+        return descendants;
     }
 
     addRootNode(nodeContent: string) {

@@ -1,4 +1,3 @@
-import fs from 'fs'
 import { createQueue } from './utils'
 import { PROMPT } from './prompts'
 import { LLM } from './llm'
@@ -7,11 +6,9 @@ import { Browser } from './browser'
 export class Searcher {
   private browser: Browser
   private llm: LLM
-  private proxy?: string
   constructor (options: { proxy?: string } = {}) {
     this.browser = new Browser({ proxy: options.proxy || '' })
     this.llm = new LLM()
-    this.proxy = options.proxy
   }
 
   /**
@@ -23,8 +20,7 @@ export class Searcher {
   ) {
     const queue = createQueue({
       name: 'fetch:content',
-      concurrency: 1,
-      delay: 500,
+      concurrency: 2,
       timeout: 10000,
       showProgress: true
     })
@@ -32,7 +28,7 @@ export class Searcher {
     // 默认取前3个链接并进行爬虫
     const links = (await this.browser.search(content))
       .filter(_ => _.url)
-      .slice(0, 3)
+      .slice(0, 5)
       .map((_, i) => ({ ..._, id: i }))
 
     if (links.length === 0) {
