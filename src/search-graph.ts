@@ -1,4 +1,5 @@
-import { Page, QuestionAnswer, Searcher } from './searcher';
+import { Page, Searcher } from './searcher';
+import { Browser } from './browser';
 import { LLM } from './llm';
 import { getErrorMessage, getUUID } from './utils';
 import { PROMPT } from './prompts';
@@ -37,7 +38,7 @@ class SearchGraph {
         console.log('\n[Plan] Starting with question:', content);
         try {
             const res = await this.llm.generate(
-                `${PROMPT.PLAN}\n## 问题\n${content}\n`
+                `${PROMPT.PLAN}\n## 问题\n${content}\n`, 'json_object'
             )
             console.log('[Plan] LLM Response:', res);
             this.logAndSave('plan_llm_response', { question: content, response: res });
@@ -77,6 +78,9 @@ class SearchGraph {
                 edges: new Map(),
                 answer: ''
             }
+        } finally {
+            // 确保关闭浏览器实例
+            await Browser.close()
         }
     }
 

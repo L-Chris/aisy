@@ -24,7 +24,7 @@ export class Searcher {
     const queue = createQueue({
       name: 'fetch:content',
       concurrency: 1,
-      delay: 1000,
+      delay: 500,
       timeout: 10000,
       showProgress: true
     })
@@ -52,7 +52,7 @@ export class Searcher {
 
     await queue.start()
 
-    const pages = (queue.queue.results || []).map(_ => _?.[0]) as Page[]
+    const pages = (queue.queue.results || []).map(_ => _?.[0]).filter(_ => !!_) as Page[]
 
     const answer = await this.answer(content, pages, parentResponses)
 

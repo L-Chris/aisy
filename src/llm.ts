@@ -4,7 +4,7 @@ import { getErrorMessage } from './utils'
 export class LLM {
   constructor () {}
 
-  async generate (prompt: string) {
+  async generate (prompt: string, type: 'json_object' | 'text' = 'text') {
     try {
       const res = await axios({
         method: 'POST',
@@ -28,7 +28,7 @@ export class LLM {
         top_k: 50,
         frequency_penalty: 0,
         n: 1,
-        response_format: { type: 'text' }
+        response_format: { type: type }
       }
     })
 
