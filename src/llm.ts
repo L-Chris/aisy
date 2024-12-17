@@ -8,27 +8,20 @@ export class LLM {
     try {
       const res = await axios({
         method: 'POST',
-        url: 'https://api.siliconflow.cn/v1/chat/completions',
+        url: process.env.LLM_BASEURL,
         headers: {
-        Authorization: `Bearer ${process.env.API_KEY}`,
+        Authorization: `Bearer ${process.env.LLM_API_KEY}`,
         'Content-Type': 'application/json'
       },
       data: {
-        model: 'internlm/internlm2_5-7b-chat',
+        model: process.env.LLM_MODEL,
         messages: [
           {
             role: 'user',
             content: prompt
           }
         ],
-        max_tokens: 1024,
-        // stop: '',
-        temperature: 0.7,
-        top_p: 0.7,
-        top_k: 50,
-        frequency_penalty: 0,
-        n: 1,
-        response_format: { type: type }
+        stream: false
       }
     })
 
