@@ -140,8 +140,32 @@ class SearchGraph {
         node.state = NODE_STATE.RUNNING;
         
         try {
+            // 根据上下文调整问题
+            let adjustedQuestion = node.content;
+            if (ancestorResponses.length > 0) {
+                const adjustPrompt = `请根据以下上下文，调整问题的描述，使其更具体和明确，以便于搜索引擎理解和搜索。
+## 注意
+- 若原问题已经足够明确，不需要根据上下文调整，直接返回原问题即可
+## 上下文信息
+${ancestorResponses.map(r => `问题：${r.content}\n回答：${r.answer}`).join('\n---\n')}
+## 原始问题
+${node.content}
+## 返回格式
+只返回调整后的问题，不需要任何解释。`;
+                adjustedQuestion = await this.llm.generate(adjustPrompt);
+                console.log(`[ExecuteNode] Adjusted question from "${node.content}" to "${adjustedQuestion}"`);
+                node.content = adjustedQuestion
+                this.logAndSave(`node_${nodeId}_question_adjustment`, {
+                    nodeId,
+                    originalQuestion: node.content,
+                    adjustedQuestion,
+                    ancestorResponses
+                });
+            }
+            
+            // 使用调整后的问题进行搜索
             const searcher = new Searcher({ proxy: this.proxy });
-            const response = await searcher.run(node.content, ancestorResponses);
+            const response = await searcher.run(adjustedQuestion, ancestorResponses);
             node.answer = response.answer;
             node.pages = response.pages;
             node.state = NODE_STATE.FINISHED;
@@ -149,7 +173,8 @@ class SearchGraph {
             console.log(`[ExecuteNode] Node ${nodeId} completed successfully`);
             this.logAndSave(`node_${nodeId}_result`, {
                 nodeId,
-                content: node.content,
+                originalContent: node.content,
+                adjustedContent: adjustedQuestion,
                 answer: node.answer,
                 pages: node.pages,
                 ancestorResponses
