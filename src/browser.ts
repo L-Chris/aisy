@@ -8,14 +8,21 @@ export class Browser {
   private static browserInstance?: PuppeteerBrowser
   private static pagePool: Page[] = []
   private static MAX_PAGES = 3
+  private searchEngine: 'bing' | 'baidu' = 'bing'
 
   constructor(options: { 
     proxy?: string,
     maxPages?: number,
-    baseURL?: string 
+    baseURL?: string,
+    searchEngine?: 'bing' | 'baidu'
   } = {}) {
     this.proxy = options.proxy
-    this.baseURL = options.baseURL || 'https://www.bing.com/search'
+    this.searchEngine = options.searchEngine || 'bing'
+    this.baseURL = options.baseURL || (
+      this.searchEngine === 'baidu' 
+        ? 'https://www.baidu.com/s' 
+        : 'https://www.bing.com/search'
+    )
     Browser.MAX_PAGES = options.maxPages || 3
     if (!Browser.instance) {
       Browser.instance = this
@@ -111,37 +118,61 @@ export class Browser {
   }
 
   async search(keyword: string) {
-    let page: Page | undefined
-    const searchUrl = `${this.baseURL}?q=${encodeURIComponent(
-      keyword.split(/\s+/g).join('+')
-    )}`
+    console.log(`[search] searching for ${keyword}`)
+    const page = await this.initBrowser()
     
     try {
-      page = await this.initBrowser()
-      await page.goto(searchUrl, { 
-        waitUntil: 'networkidle0',
-        timeout: 15000
-      })
-      
-      await page.waitForSelector('h2 a', { timeout: 10000 })
-      
-      const links = await page.evaluate(() => {
-        const results = []
-        // @ts-ignore
-        const elements = document.querySelectorAll('h2 a')
+      if (this.searchEngine === 'baidu') {
+        await page.goto(`${this.baseURL}?wd=${encodeURIComponent(keyword)}`, { waitUntil: 'networkidle0' })
+        await page.waitForSelector('.result.c-container')
         
-        for (const element of elements) {
-          results.push({
-            content: element.textContent || '',
-            url: element.getAttribute('href') || ''
-          })
-        }
-        return results
-      })
+        const results = await page.evaluate(() => {
+          // @ts-ignore
+          const items = document.querySelectorAll('.result.c-container')
+          return Array.from(items).map(item => {
+            // @ts-ignore
+            const titleEl = item.querySelector('.t a, .c-title a')
+            const title = titleEl?.textContent?.trim() || ''
+            const url = titleEl?.getAttribute('href') || ''
+            return { title, url }
+          }).filter(item => item.url)
+        })
 
-      console.log('links', links)
-      
-      return links.filter(link => link.url && !link.url.includes('bing.com'))
+        // 处理百度的重定向链接
+        const processedResults = []
+        for (const result of results) {
+          try {
+            const response = await page.goto(result.url, { waitUntil: 'networkidle0' })
+            const finalUrl = response?.url() || result.url
+            if (!finalUrl.includes('baidu.com')) {
+              processedResults.push({
+                ...result,
+                url: finalUrl
+              })
+            }
+          } catch (error) {
+            console.error(`Failed to process URL: ${result.url}`, error)
+          }
+        }
+
+        return processedResults
+      } else {
+        // 原有的必应搜索逻辑
+        await page.goto(`${this.baseURL}?q=${encodeURIComponent(keyword)}`)
+        await page.waitForSelector('#b_results')
+        
+        return await page.evaluate(() => {
+          // @ts-ignore
+          const items = document.querySelectorAll('#b_results > li.b_algo')
+          return Array.from(items).map(item => {
+            // @ts-ignore
+            const titleEl = item.querySelector('h2 a')
+            const title = titleEl?.textContent?.trim() || ''
+            const url = titleEl?.getAttribute('href') || ''
+            return { title, url }
+          }).filter(item => item.url)
+        })
+      }
     } catch (e) {
       console.error(`[search] error ${getErrorMessage(e)}`)
       return []

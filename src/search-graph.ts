@@ -12,15 +12,20 @@ class SearchGraph {
     private edges: Map<string, Edge[]>;
     private llm: LLM
     private proxy?: string
+    private searchEngine: 'bing' | 'baidu'
     private logDir: string;
     private queryBuilder: QueryBuilder
 
-    constructor(options: { proxy?: string } = {}) {
+    constructor(options: { 
+      proxy?: string,
+      searchEngine?: 'bing' | 'baidu'
+    } = {}) {
         this.nodes = new Map();
         this.edges = new Map();
         this.llm = new LLM()
         this.queryBuilder = new QueryBuilder()
         this.proxy = options.proxy
+        this.searchEngine = options.searchEngine || 'bing'
         this.logDir = path.join(process.cwd(), 'logs');
         // 确保日志目录存在
         if (!fs.existsSync(this.logDir)) {
@@ -173,7 +178,10 @@ ${node.content}
                 ? `${query.text} ${query.commands.join(' ')}`
                 : query.text
 
-            const searcher = new Searcher({ proxy: this.proxy });
+            const searcher = new Searcher({ 
+              proxy: this.proxy,
+              searchEngine: this.searchEngine 
+            });
             const response = await searcher.run(searchText, ancestorResponses);
             node.answer = response.answer;
             node.pages = response.pages;

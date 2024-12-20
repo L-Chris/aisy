@@ -13,9 +13,13 @@ export class Searcher {
     proxy?: string,
     maxConcurrency?: number,
     timeout?: number,
-    maxResults?: number
+    maxResults?: number,
+    searchEngine?: 'bing' | 'baidu'
   } = {}) {
-    this.browser = new Browser({ proxy: options.proxy })
+    this.browser = new Browser({ 
+      proxy: options.proxy,
+      searchEngine: options.searchEngine 
+    })
     this.llm = new LLM()
     this.maxConcurrency = options.maxConcurrency || 2
     this.timeout = options.timeout || 10000
