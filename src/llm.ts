@@ -1,20 +1,25 @@
+import { LLMConfig } from './config'
 import axios from 'axios'
 import { getErrorMessage } from './utils'
 
 export class LLM {
-  constructor () {}
+  private config: LLMConfig
+
+  constructor(config: LLMConfig) {
+    this.config = config
+  }
 
   async generate (prompt: string, type: 'json_object' | 'text' = 'text') {
     try {
       const res = await axios({
         method: 'POST',
-        url: process.env.LLM_BASEURL,
+        url: this.config.endpoint,
         headers: {
-        Authorization: `Bearer ${process.env.LLM_API_KEY}`,
+        Authorization: `Bearer ${this.config.apiKey}`,
         'Content-Type': 'application/json'
       },
       data: {
-        model: process.env.LLM_MODEL,
+        model: this.config.model,
         messages: [
           {
             role: 'user',

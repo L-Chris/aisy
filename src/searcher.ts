@@ -1,11 +1,11 @@
 import { createQueue } from './utils'
 import { PROMPT } from './prompts'
-import { LLM } from './llm'
+import { LLMPool } from './llm-pool'
 import { Browser } from './browser'
 
 export class Searcher {
   private browser: Browser
-  private llm: LLM
+  private llmPool: LLMPool
   private maxConcurrency: number
   private timeout: number
   private maxResults: number
@@ -14,13 +14,14 @@ export class Searcher {
     maxConcurrency?: number,
     timeout?: number,
     maxResults?: number,
-    searchEngine?: 'bing' | 'baidu'
+    searchEngine?: 'bing' | 'baidu',
+    llmPool?: LLMPool
   } = {}) {
     this.browser = new Browser({ 
       proxy: options.proxy,
       searchEngine: options.searchEngine 
     })
-    this.llm = new LLM()
+    this.llmPool = options.llmPool || new LLMPool()
     this.maxConcurrency = options.maxConcurrency || 5
     this.timeout = options.timeout || 10000
     this.maxResults = options.maxResults || 5
@@ -76,7 +77,7 @@ export class Searcher {
 
   async answer (question: string, pages: Page[], parentResponses: QuestionAnswer[]) {
     const prompt = PROMPT.ANSWER
-    const res = await this.llm.generate(
+    const res = await this.llmPool.next().generate(
       `${prompt}
 ## 已知
 ${parentResponses.map(r => `- 问题：${r.content}\n- 回答：${r.answer}`).join('\n---\n')}

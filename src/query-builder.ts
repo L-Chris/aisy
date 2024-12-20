@@ -1,4 +1,4 @@
-import { LLM } from './llm'
+import { LLMPool } from './llm-pool'
 
 interface QueryBuilderOptions {
   maxQueries?: number // 最大查询数量，默认3
@@ -11,18 +11,18 @@ export interface Query {
 }
 
 export class QueryBuilder {
-  private llm: LLM
+  private llmPool: LLMPool
   private maxQueries: number
 
-  constructor(options?: QueryBuilderOptions) {
-    this.llm = new LLM()
+  constructor(llmPool: LLMPool, options?: QueryBuilderOptions) {
+    this.llmPool = llmPool
     this.maxQueries = options?.maxQueries || 3
   }
 
   /**
    * 为单个搜索节点构建优化查询
    */
-  async build(nodeContent: string): Promise<Query> {
+  async build(nodeContent: string, context?: string): Promise<Query> {
     const prompt = `
       请为以下搜索内容构建一个优化的搜索查询。要求：
       1. 使用简洁、准确的描述，避免口语化表达
@@ -38,7 +38,7 @@ export class QueryBuilder {
       }
     `
 
-    const response = await this.llm.generate(prompt)
+    const response = await this.llmPool.next().generate(prompt)
     try {
       const result = JSON.parse(response)
       return this.optimize(result)

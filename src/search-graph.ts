@@ -1,31 +1,29 @@
 import { Page, Searcher } from './searcher';
 import { Browser } from './browser';
-import { LLM } from './llm';
 import { getErrorMessage, getUUID } from './utils';
 import { PROMPT } from './prompts';
 import fs from 'fs';
 import path from 'path';
 import { Query, QueryBuilder } from './query-builder';
+import { LLMPool } from './llm-pool';
+import { Config, defaultConfig } from './config';
 
 class SearchGraph {
     private nodes: Map<string, Node>;
     private edges: Map<string, Edge[]>;
-    private llm: LLM
+    private llmPool: LLMPool;
     private proxy?: string
     private searchEngine: 'bing' | 'baidu'
     private logDir: string;
     private queryBuilder: QueryBuilder
 
-    constructor(options: { 
-      proxy?: string,
-      searchEngine?: 'bing' | 'baidu'
-    } = {}) {
+    constructor(config: Config = defaultConfig) {
         this.nodes = new Map();
         this.edges = new Map();
-        this.llm = new LLM()
-        this.queryBuilder = new QueryBuilder()
-        this.proxy = options.proxy
-        this.searchEngine = options.searchEngine || 'bing'
+        this.llmPool = new LLMPool(config);
+        this.queryBuilder = new QueryBuilder(this.llmPool);
+        this.proxy = config.proxy
+        this.searchEngine = config.searchEngine || 'bing'
         this.logDir = path.join(process.cwd(), 'logs');
         // 确保日志目录存在
         if (!fs.existsSync(this.logDir)) {
@@ -43,7 +41,7 @@ class SearchGraph {
     async plan(content: string) {
         console.log('\n[Plan] Starting with question:', content);
         try {
-            const res = await this.llm.generate(
+            const res = await this.llmPool.next().generate(
                 `${PROMPT.PLAN}\n## 问题\n${content}\n`, 'json_object'
             )
             console.log('[Plan] LLM Response:', res);
@@ -158,7 +156,7 @@ ${ancestorResponses.map(r => `问题：${r.content}\n回答：${r.answer}`).join
 ${node.content}
 ## 返回格式
 只返回调整后的问题，不需要任何解释。`;
-                adjustedQuestion = await this.llm.generate(adjustPrompt);
+                adjustedQuestion = await this.llmPool.next().generate(adjustPrompt);
                 console.log(`[ExecuteNode] Adjusted question from "${node.content}" to "${adjustedQuestion}"`);
                 node.content = adjustedQuestion
                 this.logAndSave(`node_${nodeId}_question_adjustment`, {
@@ -261,7 +259,7 @@ ${node.content}
                 answer: node.answer || ''
             }))
 
-        const finalAnswer = await this.llm.generate(
+        const finalAnswer = await this.llmPool.next().generate(
             `${PROMPT.SUMMARY}\n## 原始问题\n${root.content}\n## 所有子问题回答\n${responses.map((r, i) => `[${i}] 问题：${r.content}\n回答：${r.answer}`).join('\n---\n')}`
         )
 
