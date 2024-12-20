@@ -23,26 +23,29 @@ export class QueryBuilder {
    * 为单个搜索节点构建优化查询
    */
   async build(nodeContent: string, context?: string): Promise<Query> {
-    const prompt = `
-      请为以下搜索内容构建一个优化的搜索查询。要求：
-      1. 使用简洁、准确的描述，避免口语化表达
-      2. 如果涉及特定领域或时间范围，添加相应的搜索指令
-      3. 保持核心搜索意图
-      
-      搜索内容：${nodeContent}
-      
-      请以JSON格式返回，格式如下：
-      {
-        "text": "优化后的查询文本",
-        "commands": ["site:example.com", "before:2024-01-01"]
-      }
-    `
+    const prompt = `## 任务介绍
+请为以下搜索内容构建一个优化的搜索查询。
+## 要求
+1. 使用简洁、准确的描述，避免口语化表达
+2. 如果涉及特定领域或时间范围，添加相应的搜索指令
+3. 保持核心搜索意图
+
+## 返回格式示例，结果为JSON格式，请严格按照格式返回，不需要额外添加任何内容
+{
+  "text": "优化后的查询文本",
+  "commands": ["site:example.com", "before:2024-01-01"]
+}
+
+## 搜索内容
+${nodeContent}
+`
 
     const response = await this.llmPool.next().generate(prompt)
     try {
-      const result = JSON.parse(response)
+      const result = JSON.parse(response.replace(/^```json\s*\n/, '').replace(/\n```$/, ''))
       return this.optimize(result)
     } catch (error) {
+      console.log('[query-builder] error', error)
       // 如果解析失败，返回原始内容的优化查询
       return this.optimize({ text: nodeContent })
     }

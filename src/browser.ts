@@ -33,6 +33,9 @@ export class Browser {
   private async initBrowser() {
     if (!Browser.browserInstance) {
       const args = [
+        '--js-flags=--expose-gc',
+        '--disable-accelerated-2d-canvas',
+        '--no-zygote',
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-gpu',

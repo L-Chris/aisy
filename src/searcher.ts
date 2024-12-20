@@ -2,6 +2,7 @@ import { createQueue } from './utils'
 import { PROMPT } from './prompts'
 import { LLMPool } from './llm-pool'
 import { Browser } from './browser'
+import { createHash } from 'crypto'
 
 export class Searcher {
   private browser: Browser
@@ -9,6 +10,8 @@ export class Searcher {
   private maxConcurrency: number
   private timeout: number
   private maxResults: number
+  private urlCache: Map<string, CacheItem>
+  
   constructor (options: { 
     proxy?: string,
     maxConcurrency?: number,
@@ -22,9 +25,20 @@ export class Searcher {
       searchEngine: options.searchEngine 
     })
     this.llmPool = options.llmPool || new LLMPool()
-    this.maxConcurrency = options.maxConcurrency || 5
+    this.maxConcurrency = options.maxConcurrency || 10
     this.timeout = options.timeout || 10000
     this.maxResults = options.maxResults || 5
+    this.urlCache = new Map()
+  }
+
+  private getCacheKey(url: string): string {
+    return createHash('md5').update(url).digest('hex')
+  }
+
+  private isValidCache(cacheItem: CacheItem): boolean {
+    // 缓存有效期为1小时
+    const CACHE_TTL = 60 * 60 * 1000
+    return Date.now() - cacheItem.timestamp < CACHE_TTL
   }
 
   /**
@@ -41,7 +55,6 @@ export class Searcher {
       showProgress: true
     })
 
-    // 默认取前3个链接并进行爬虫
     const links = (await this.browser.search(content))
       .filter(_ => _.url)
       .slice(0, this.maxResults)
@@ -57,14 +70,32 @@ export class Searcher {
 
     for (const link of links) {
       queue.push(async cb => {
+        const cacheKey = this.getCacheKey(link.url)
+        const cached = this.urlCache.get(cacheKey)
+
+        if (cached && this.isValidCache(cached)) {
+          console.log(`[Cache] Hit for URL: ${link.url}`)
+          cb(undefined, { ...link, content: cached.content, success: true })
+          return
+        }
+
         const text = await this.browser.fetch(link.url)
+        if (text) {
+          // 更新缓存
+          this.urlCache.set(cacheKey, {
+            content: text,
+            timestamp: Date.now()
+          })
+        }
         cb(undefined, { ...link, content: text, success: !!text })
       })
     }
 
     await queue.start()
 
-    const pages = (queue.queue.results || []).map(_ => _?.[0]).filter(_ => !!_) as Page[]
+    const pages = (queue.queue.results || [])
+      .map(_ => _?.[0])
+      .filter(_ => !!_) as Page[]
 
     const answer = await this.answer(content, pages, parentResponses)
 
@@ -88,6 +119,11 @@ ${pages.map(p => `- 标题：${p.title}\n- 链接：${p.url}\n- 内容：${p.con
 `)
     return res as string
   }
+}
+
+interface CacheItem {
+  content: string
+  timestamp: number
 }
 
 export interface Page {
