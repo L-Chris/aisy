@@ -11,6 +11,9 @@ A powerful AI-driven search engine capable of breaking down complex questions in
 - 🛡️ Built-in Anti-Crawler Protection - Smart request scheduling to avoid bans
 - ⚡ High Performance - Page pool reuse and intelligent caching mechanism
 - 📝 Smart Query Building - Optimizes search queries with domain-specific commands and removes colloquial expressions
+- 🔄 Multi-Engine Support - Supports multiple search engines including Bing and Baidu
+- 🌐 Proxy Support - Flexible proxy configuration for different regions
+- 🔋 LLM Pool - Multiple LLM provider support with automatic load balancing
 
 ## 🚀 Quick Start
 
@@ -34,9 +37,12 @@ console.log(result.answer)
 ### Environment Variable Configuration
 
 ```bash
-LLM_BASEURL=Your LLM API address
-LLM_API_KEY=Your API key
-LLM_MODEL=Model name
+DEEPSEEK_API_KEY=
+DEEPSEEK_ENDPOINT=
+KIMI_API_KEY=
+KIMI_ENDPOINT=
+QWEN_API_KEY=
+QWEN_ENDPOINT=
 ```
 
 ## 📖 API Documentation 
@@ -104,6 +110,44 @@ const search = new SearchGraph({
   maxConcurrency: 5, // Maximum 5 concurrent requests
   timeout: 20000, // 20 seconds timeout
   maxResults: 10 // 10 results per search
+})
+```
+
+### Advanced Configuration
+
+#### LLM Pool Configuration
+
+```typescript
+const search = new SearchGraph({
+  llmPool: {
+    providers: [
+      {
+        endpoint: process.env.DEEPSEEK_ENDPOINT,
+        apiKey: process.env.DEEPSEEK_API_KEY,
+        model: 'deepseek-chat'
+      },
+      {
+        endpoint: process.env.KIMI_ENDPOINT,
+        apiKey: process.env.KIMI_API_KEY,
+        model: 'kimi-chat'
+      },
+      {
+        endpoint: process.env.QWEN_ENDPOINT,
+        apiKey: process.env.QWEN_API_KEY,
+        model: 'qwen-chat'
+      }
+    ]
+  }
+})
+```
+
+#### Search Engine Configuration
+
+```typescript
+const search = new SearchGraph({
+  searchEngine: 'baidu', // 'bing' or 'baidu'
+  baseURL: 'https://www.baidu.com/s', // optional, will be set automatically based on searchEngine
+  proxy: 'http://127.0.0.1:7890'
 })
 ```
 
