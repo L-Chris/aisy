@@ -10,6 +10,7 @@ A powerful AI-driven search engine capable of breaking down complex questions in
 - 🧠 Intelligent Answer Synthesis - Uses AI to summarize and synthesize final answers
 - 🛡️ Built-in Anti-Crawler Protection - Smart request scheduling to avoid bans
 - ⚡ High Performance - Page pool reuse and intelligent caching mechanism
+- 📝 Smart Query Building - Optimizes search queries with domain-specific commands and removes colloquial expressions
 
 ## 🚀 Quick Start
 

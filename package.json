@@ -10,7 +10,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "start": "ts-node src/app.ts",
+    "start": "ts-node test/index.ts",
     "build": "tsc",
     "prepublishOnly": "npm run build",
     "test": "jest",

@@ -5,21 +5,22 @@ import { getErrorMessage, getUUID } from './utils';
 import { PROMPT } from './prompts';
 import fs from 'fs';
 import path from 'path';
+import { QueryBuilder } from './query-builder';
 
 class SearchGraph {
     private nodes: Map<string, Node>;
     private edges: Map<string, Edge[]>;
     private llm: LLM
     private proxy?: string
-    private i: number
     private logDir: string;
+    private queryBuilder: QueryBuilder
 
     constructor(options: { proxy?: string } = {}) {
         this.nodes = new Map();
         this.edges = new Map();
         this.llm = new LLM()
+        this.queryBuilder = new QueryBuilder()
         this.proxy = options.proxy
-        this.i = 0
         this.logDir = path.join(process.cwd(), 'logs');
         // 确保日志目录存在
         if (!fs.existsSync(this.logDir)) {
@@ -165,7 +166,14 @@ ${node.content}
             
             // 使用调整后的问题进行搜索
             const searcher = new Searcher({ proxy: this.proxy });
-            const response = await searcher.run(adjustedQuestion, ancestorResponses);
+
+            const query = await this.queryBuilder.build(node.content, JSON.stringify(ancestorResponses));
+            // 2. 执行搜索
+            const searchText = query.commands 
+            ? `${query.text} ${query.commands.join(' ')}`
+            : query.text
+
+            const response = await searcher.run(searchText, ancestorResponses);
             node.answer = response.answer;
             node.pages = response.pages;
             node.state = NODE_STATE.FINISHED;
