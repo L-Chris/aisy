@@ -170,7 +170,7 @@ ${node.content}
             }
             
             // 构建查询
-            const query = await this.queryBuilder.build(node.content, JSON.stringify(ancestorResponses));
+            const query = await this.queryBuilder.build(node.content);
             node.queries = [query]; // 保存生成的查询
 
             // 2. 执行搜索

@@ -91,7 +91,7 @@ export class Browser {
       page = await this.initBrowser()
       await page.goto(url, { 
         waitUntil: 'networkidle0',
-        timeout: 15000
+        timeout: 10000
       })
       
       const content = await page.evaluate(() => {

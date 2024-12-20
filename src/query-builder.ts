@@ -22,7 +22,7 @@ export class QueryBuilder {
   /**
    * 为单个搜索节点构建优化查询
    */
-  async build(nodeContent: string, context?: string): Promise<Query> {
+  async build(nodeContent: string): Promise<Query> {
     const prompt = `
       请为以下搜索内容构建一个优化的搜索查询。要求：
       1. 使用简洁、准确的描述，避免口语化表达
@@ -30,7 +30,6 @@ export class QueryBuilder {
       3. 保持核心搜索意图
       
       搜索内容：${nodeContent}
-      ${context ? `上下文：${context}` : ''}
       
       请以JSON格式返回，格式如下：
       {

@@ -21,7 +21,7 @@ export class Searcher {
       searchEngine: options.searchEngine 
     })
     this.llm = new LLM()
-    this.maxConcurrency = options.maxConcurrency || 2
+    this.maxConcurrency = options.maxConcurrency || 5
     this.timeout = options.timeout || 10000
     this.maxResults = options.maxResults || 5
   }
