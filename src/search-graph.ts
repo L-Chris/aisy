@@ -5,7 +5,7 @@ import { getErrorMessage, getUUID } from './utils';
 import { PROMPT } from './prompts';
 import fs from 'fs';
 import path from 'path';
-import { QueryBuilder } from './query-builder';
+import { Query, QueryBuilder } from './query-builder';
 
 class SearchGraph {
     private nodes: Map<string, Node>;
@@ -164,15 +164,16 @@ ${node.content}
                 });
             }
             
-            // 使用调整后的问题进行搜索
-            const searcher = new Searcher({ proxy: this.proxy });
-
+            // 构建查询
             const query = await this.queryBuilder.build(node.content, JSON.stringify(ancestorResponses));
+            node.queries = [query]; // 保存生成的查询
+
             // 2. 执行搜索
             const searchText = query.commands 
-            ? `${query.text} ${query.commands.join(' ')}`
-            : query.text
+                ? `${query.text} ${query.commands.join(' ')}`
+                : query.text
 
+            const searcher = new Searcher({ proxy: this.proxy });
             const response = await searcher.run(searchText, ancestorResponses);
             node.answer = response.answer;
             node.pages = response.pages;
@@ -183,6 +184,7 @@ ${node.content}
                 nodeId,
                 originalContent: node.content,
                 adjustedContent: adjustedQuestion,
+                queries: node.queries, // 添加查询到日志
                 answer: node.answer,
                 pages: node.pages,
                 ancestorResponses
@@ -336,6 +338,7 @@ interface Node {
     answer?: string;
     pages?: Page[];
     state: NODE_STATE;
+    queries?: Query[];
 }
 
 interface RawNode {

@@ -83,7 +83,7 @@ export class Browser {
     try {
       page = await this.initBrowser()
       await page.goto(url, { 
-        waitUntil: 'domcontentloaded',
+        waitUntil: 'networkidle0',
         timeout: 15000
       })
       
@@ -119,11 +119,11 @@ export class Browser {
     try {
       page = await this.initBrowser()
       await page.goto(searchUrl, { 
-        waitUntil: 'domcontentloaded',
+        waitUntil: 'networkidle0',
         timeout: 15000
       })
       
-      await page.waitForSelector('h2 a', { timeout: 5000 })
+      await page.waitForSelector('h2 a', { timeout: 10000 })
       
       const links = await page.evaluate(() => {
         const results = []
@@ -138,6 +138,8 @@ export class Browser {
         }
         return results
       })
+
+      console.log('links', links)
       
       return links.filter(link => link.url && !link.url.includes('bing.com'))
     } catch (e) {

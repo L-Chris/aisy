@@ -4,7 +4,7 @@ interface QueryBuilderOptions {
   maxQueries?: number // 最大查询数量，默认3
 }
 
-interface Query {
+export interface Query {
   text: string       // 查询文本
   weight?: number    // 查询权重，用于结果合成时的参考
   commands?: string[] // 搜索引擎特定的指令
@@ -81,4 +81,4 @@ export class QueryBuilder {
     date.setMonth(date.getMonth() - 3) // 默认最近3个月
     return date.toISOString().split('T')[0]
   }
-} 
+}

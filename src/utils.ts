@@ -87,4 +87,4 @@ export const getErrorMessage = (err: any) => {
   return typeof err === 'string' && err.length > 1000 ? err.slice(100) : err
 }
 
-export const getUUID = () => crypto.randomUUID()
+export const getUUID = () => Math.random().toString(36).substring(2, 8)
