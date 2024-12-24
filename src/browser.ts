@@ -137,7 +137,9 @@ export class Browser {
             const titleEl = item.querySelector('.t a, .c-title a')
             const title = titleEl?.textContent?.trim() || ''
             const url = titleEl?.getAttribute('href') || ''
-            return { title, url }
+            // @ts-ignore
+            const description = item.querySelector('.c-span9')?.textContent?.trim() || ''
+            return { title, url, description }
           }).filter(item => item.url)
         })
 
@@ -160,7 +162,7 @@ export class Browser {
 
         return processedResults
       } else {
-        // 原有的必应搜索逻辑
+        // Bing 搜索
         await page.goto(`${this.baseURL}?q=${encodeURIComponent(keyword)}`)
         await page.waitForSelector('#b_results')
         
@@ -172,7 +174,9 @@ export class Browser {
             const titleEl = item.querySelector('h2 a')
             const title = titleEl?.textContent?.trim() || ''
             const url = titleEl?.getAttribute('href') || ''
-            return { title, url }
+            // @ts-ignore
+            const description = item.querySelector('.b_caption p')?.textContent?.trim() || ''
+            return { title, url, description }
           }).filter(item => item.url)
         })
       }
