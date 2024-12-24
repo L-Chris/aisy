@@ -3,6 +3,7 @@ import { PROMPT } from './prompts'
 import { LLMPool } from './llm-pool'
 import { Browser } from './browser'
 import { createHash } from 'crypto'
+import { Timer } from './utils'
 
 export class Searcher {
   private browser: Browser
@@ -48,6 +49,9 @@ export class Searcher {
     content: string,
     parentResponses: QuestionAnswer[]
   ) {
+    const timer = new Timer()
+    timer.start('total_search')
+
     const queue = createQueue({
       name: 'fetch:content',
       concurrency: this.maxConcurrency,
@@ -55,19 +59,24 @@ export class Searcher {
       showProgress: true
     })
 
+    timer.start('search_links')
     const links = (await this.browser.search(content))
       .filter(_ => _.url)
       .slice(0, this.maxResults)
       .map((_, i) => ({ ..._, id: i }))
+    timer.end('search_links')
 
     if (links.length === 0) {
+      timer.end('total_search')
       return {
         content,
         pages: [],
-        answer: '没有找到相关链接'
+        answer: '没有找到相关链接',
+        timing: timer.getMetrics()
       }
     }
 
+    timer.start('fetch_contents')
     for (const link of links) {
       queue.push(async cb => {
         const cacheKey = this.getCacheKey(link.url)
@@ -90,19 +99,24 @@ export class Searcher {
         cb(undefined, { ...link, content: text, success: !!text })
       })
     }
-
     await queue.start()
+    timer.end('fetch_contents')
 
     const pages = (queue.queue.results || [])
       .map(_ => _?.[0])
       .filter(_ => !!_) as Page[]
 
+    timer.start('generate_answer')
     const answer = await this.answer(content, pages, parentResponses)
+    timer.end('generate_answer')
+
+    timer.end('total_search')
 
     return {
       content,
       pages,
-      answer
+      answer,
+      timing: timer.getMetrics()
     }
   }
 

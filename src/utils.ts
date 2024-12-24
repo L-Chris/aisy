@@ -88,3 +88,35 @@ export const getErrorMessage = (err: any) => {
 }
 
 export const getUUID = () => Math.random().toString(36).substring(2, 8)
+
+export interface TimeMetric {
+  startTime: number
+  endTime?: number
+  duration?: number
+}
+
+export interface TimingInfo {
+  [key: string]: TimeMetric
+}
+
+export class Timer {
+  private metrics: TimingInfo = {}
+
+  start(name: string) {
+    this.metrics[name] = {
+      startTime: Date.now()
+    }
+  }
+
+  end(name: string) {
+    const metric = this.metrics[name]
+    if (metric) {
+      metric.endTime = Date.now()
+      metric.duration = metric.endTime - metric.startTime
+    }
+  }
+
+  getMetrics() {
+    return this.metrics
+  }
+}

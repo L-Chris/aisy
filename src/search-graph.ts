@@ -7,6 +7,7 @@ import path from 'path';
 import { Query, QueryBuilder } from './query-builder';
 import { LLMPool } from './llm-pool';
 import { Config, defaultConfig } from './config';
+import { Timer } from './utils';
 
 class SearchGraph {
     private nodes: Map<string, Node>;
@@ -16,6 +17,7 @@ class SearchGraph {
     private searchEngine: 'bing' | 'baidu'
     private logDir: string;
     private queryBuilder: QueryBuilder
+    private timer: Timer
 
     constructor(config: Config = defaultConfig) {
         this.nodes = new Map();
@@ -29,6 +31,7 @@ class SearchGraph {
         if (!fs.existsSync(this.logDir)) {
             fs.mkdirSync(this.logDir, { recursive: true });
         }
+        this.timer = new Timer()
     }
 
     private logAndSave(type: string, data: any) {
@@ -39,11 +42,17 @@ class SearchGraph {
     }
 
     async plan(content: string) {
+        this.timer.start('total')
+        this.timer.start('planning')
         console.log('\n[Plan] Starting with question:', content);
         try {
+            // LLM planning
+            this.timer.start('llm_planning')
             const res = await this.llmPool.next().generate(
                 `${PROMPT.PLAN}\n## 问题\n${content}\n`, 'json_object'
             )
+            this.timer.end('llm_planning')
+            
             console.log('[Plan] LLM Response:', res);
             this.logAndSave('plan_llm_response', { question: content, response: res });
             
@@ -54,12 +63,22 @@ class SearchGraph {
             const root = this.addRootNode(content)
             console.log('[Plan] Root node created:', root.id);
             
+            this.timer.start('process_nodes')
             await this.processNodes(nodes, root.id)
-            console.log('[Plan] All nodes processed');
+            this.timer.end('process_nodes')
             
+            this.timer.start('process_root')
             await this.processRootNode(root.id)
-            console.log('[Plan] Root node processed');
+            this.timer.end('process_root')
             
+            this.timer.end('total')
+            
+            // Save timing metrics
+            this.logAndSave('timing_metrics', {
+                question: content,
+                metrics: this.timer.getMetrics()
+            })
+
             // 保存最终的搜索图结构
             this.logAndSave('final_search_graph', {
                 nodes: Array.from(this.nodes.entries()),
@@ -69,9 +88,11 @@ class SearchGraph {
             return {
                 nodes: this.nodes,
                 edges: this.edges,
-                answer: root.answer || ''
+                answer: root.answer || '',
+                timing: this.timer.getMetrics()
             }
         } catch (error) {
+            this.timer.end('total')
             console.error(`[Plan] Error:`, error);
             this.logAndSave('plan_error', {
                 error: getErrorMessage(error),
@@ -80,7 +101,8 @@ class SearchGraph {
             return {
                 nodes: new Map(),
                 edges: new Map(),
-                answer: ''
+                answer: '',
+                timing: this.timer.getMetrics()
             }
         } finally {
             // 确保关闭浏览器实例
@@ -123,6 +145,8 @@ class SearchGraph {
     }
 
     private async executeNode(nodeId: string) {
+        const nodeTimer = new Timer()
+        nodeTimer.start('node_execution')
         console.log(`\n[ExecuteNode] Starting execution for node:`, nodeId);
         const node = this.nodes.get(nodeId);
         if (!node) {
@@ -168,8 +192,9 @@ ${node.content}
             }
             
             // 构建查询
+            nodeTimer.start('query_building')
             const query = await this.queryBuilder.build(node.content);
-            node.queries = [query]; // 保存生成的查询
+            nodeTimer.end('query_building')
 
             // 2. 执行搜索
             const searchText = query.commands 
@@ -180,7 +205,10 @@ ${node.content}
               proxy: this.proxy,
               searchEngine: this.searchEngine 
             });
+            nodeTimer.start('search_execution')
             const response = await searcher.run(searchText, ancestorResponses);
+            nodeTimer.end('search_execution')
+
             node.answer = response.answer;
             node.pages = response.pages;
             node.state = NODE_STATE.FINISHED;
@@ -195,7 +223,16 @@ ${node.content}
                 pages: node.pages,
                 ancestorResponses
             });
+
+            // Log node execution timing
+            this.logAndSave(`node_${nodeId}_timing`, {
+                nodeId,
+                metrics: nodeTimer.getMetrics(),
+                searchMetrics: response.timing // We'll add this to searcher response
+            })
+
         } catch (error) {
+            nodeTimer.end('node_execution')
             console.error(`[ExecuteNode] Error for node ${nodeId}:`, error);
             node.state = NODE_STATE.ERROR;
             this.logAndSave(`node_${nodeId}_error`, {
