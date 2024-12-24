@@ -8,26 +8,33 @@ export class Browser {
   private static browserInstance?: PuppeteerBrowser
   private static pagePool: Page[] = []
   private static MAX_PAGES = 3
-  private searchEngine: 'bing' | 'baidu' = 'bing'
+  private searchEngine: 'bing' | 'baidu' | 'xiaohongshu' = 'bing'
 
   constructor(options: { 
     proxy?: string,
     maxPages?: number,
     baseURL?: string,
-    searchEngine?: 'bing' | 'baidu'
+    searchEngine?: 'bing' | 'baidu' | 'xiaohongshu'
   } = {}) {
     this.proxy = options.proxy
     this.searchEngine = options.searchEngine || 'bing'
-    this.baseURL = options.baseURL || (
-      this.searchEngine === 'baidu' 
-        ? 'https://www.baidu.com/s' 
-        : 'https://www.bing.com/search'
-    )
+    this.baseURL = options.baseURL || this.getDefaultBaseURL()
     Browser.MAX_PAGES = options.maxPages || 3
     if (!Browser.instance) {
       Browser.instance = this
     }
     return Browser.instance
+  }
+
+  private getDefaultBaseURL(): string {
+    switch(this.searchEngine) {
+      case 'baidu':
+        return 'https://www.baidu.com/s'
+      case 'xiaohongshu':
+        return 'https://www.xiaohongshu.com/search_result/'
+      default:
+        return 'https://www.bing.com/search'
+    }
   }
 
   private async initBrowser() {
@@ -121,64 +128,17 @@ export class Browser {
   }
 
   async search(keyword: string) {
-    console.log(`[search] searching for ${keyword}`)
+    console.log(`[search] searching for ${keyword} on ${this.searchEngine}`)
     const page = await this.initBrowser()
     
     try {
-      if (this.searchEngine === 'baidu') {
-        await page.goto(`${this.baseURL}?wd=${encodeURIComponent(keyword)}`, { waitUntil: 'networkidle0' })
-        await page.waitForSelector('.result.c-container')
-        
-        const results = await page.evaluate(() => {
-          // @ts-ignore
-          const items = document.querySelectorAll('.result.c-container')
-          return Array.from(items).map(item => {
-            // @ts-ignore
-            const titleEl = item.querySelector('.t a, .c-title a')
-            const title = titleEl?.textContent?.trim() || ''
-            const url = titleEl?.getAttribute('href') || ''
-            // @ts-ignore
-            const description = item.querySelector('.c-span9')?.textContent?.trim() || ''
-            return { title, url, description }
-          }).filter(item => item.url)
-        })
-
-        // 处理百度的重定向链接
-        const processedResults = []
-        for (const result of results) {
-          try {
-            const response = await page.goto(result.url, { waitUntil: 'networkidle0' })
-            const finalUrl = response?.url() || result.url
-            if (!finalUrl.includes('baidu.com')) {
-              processedResults.push({
-                ...result,
-                url: finalUrl
-              })
-            }
-          } catch (error) {
-            console.error(`Failed to process URL: ${result.url}`, error)
-          }
-        }
-
-        return processedResults
-      } else {
-        // Bing 搜索
-        await page.goto(`${this.baseURL}?q=${encodeURIComponent(keyword)}`)
-        await page.waitForSelector('#b_results')
-        
-        return await page.evaluate(() => {
-          // @ts-ignore
-          const items = document.querySelectorAll('#b_results > li.b_algo')
-          return Array.from(items).map(item => {
-            // @ts-ignore
-            const titleEl = item.querySelector('h2 a')
-            const title = titleEl?.textContent?.trim() || ''
-            const url = titleEl?.getAttribute('href') || ''
-            // @ts-ignore
-            const description = item.querySelector('.b_caption p')?.textContent?.trim() || ''
-            return { title, url, description }
-          }).filter(item => item.url)
-        })
+      switch(this.searchEngine) {
+        case 'baidu':
+          return await this.searchBaidu(page, keyword)
+        case 'xiaohongshu':
+          return await this.searchXiaohongshu(page, keyword)
+        default:
+          return await this.searchBing(page, keyword)
       }
     } catch (e) {
       console.error(`[search] error ${getErrorMessage(e)}`)
@@ -188,6 +148,101 @@ export class Browser {
         await this.releasePage(page)
       }
     }
+  }
+
+  private async searchXiaohongshu(page: Page, keyword: string) {
+    await page.goto(`${this.baseURL}?keyword=${encodeURIComponent(keyword)}`, { 
+      waitUntil: 'networkidle0' 
+    })
+    
+    // 等待搜索结果加载
+    await page.waitForSelector('.note-item')
+    
+    return await page.evaluate(() => {
+      // @ts-ignore
+      const items = document.querySelectorAll('.note-item')
+      return Array.from(items).map(item => {
+        // @ts-ignore
+        const titleEl = item.querySelector('.note-title')
+        const title = titleEl?.textContent?.trim() || ''
+        // @ts-ignore
+        const url = item.querySelector('a')?.href || ''
+        // @ts-ignore
+        const description = item.querySelector('.note-desc')?.textContent?.trim() || ''
+        // @ts-ignore
+        const author = item.querySelector('.user-name')?.textContent?.trim() || ''
+        // @ts-ignore
+        const likes = item.querySelector('.like-count')?.textContent?.trim() || ''
+        
+        return { 
+          title, 
+          url, 
+          description,
+          platform: 'xiaohongshu',
+          metadata: {
+            author,
+            likes
+          }
+        }
+      }).filter(item => item.url)
+    })
+  }
+
+  private async searchBaidu(page: Page, keyword: string) {
+    await page.goto(`${this.baseURL}?wd=${encodeURIComponent(keyword)}`, { waitUntil: 'networkidle0' })
+    await page.waitForSelector('.result.c-container')
+    
+    const results = await page.evaluate(() => {
+      // @ts-ignore
+      const items = document.querySelectorAll('.result.c-container')
+      return Array.from(items).map(item => {
+        // @ts-ignore
+        const titleEl = item.querySelector('.t a, .c-title a')
+        const title = titleEl?.textContent?.trim() || ''
+        const url = titleEl?.getAttribute('href') || ''
+        // @ts-ignore
+        const description = item.querySelector('.c-span9')?.textContent?.trim() || ''
+        return { title, url, description }
+      }).filter(item => item.url)
+    })
+
+    // 处理百度的重定向链接
+    const processedResults = []
+    for (const result of results) {
+      try {
+        const response = await page.goto(result.url, { waitUntil: 'networkidle0' })
+        const finalUrl = response?.url() || result.url
+        if (!finalUrl.includes('baidu.com')) {
+          processedResults.push({
+            ...result,
+            url: finalUrl
+          })
+        }
+      } catch (error) {
+        console.error(`Failed to process URL: ${result.url}`, error)
+      }
+    }
+
+    return processedResults
+  }
+
+  private async searchBing(page: Page, keyword: string) {
+    await page.goto(`${this.baseURL}?q=${encodeURIComponent(keyword)}`)
+    await page.waitForSelector('#b_results')
+    
+    return await page.evaluate(() => {
+      // @ts-ignore
+      const items = document.querySelectorAll('#b_results > li.b_algo')
+      return Array.from(items).map(item => {
+        // @ts-ignore
+        const titleEl = item.querySelector('h2 a')
+        const title = titleEl?.textContent?.trim() || ''
+        const url = titleEl?.getAttribute('href') || ''
+        // @ts-ignore
+        const description = item.querySelector('.b_caption p')?.textContent?.trim() || ''
+        return { title, url, description }
+      }).filter(item => item.url)
+    })
   }
 
   async fetch(url: string) {

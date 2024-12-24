@@ -209,13 +209,13 @@ ${node.content}
           nodeTimer.end(`query_building_attempt_${attempt}`)
 
           // 执行搜索
-          const searchText = query.commands
+          const searchText = query.commands 
             ? `${query.text} ${query.commands.join(' ')}`
             : query.text
 
-          const searcher = new Searcher({
+          const searcher = new Searcher({ 
             proxy: this.proxy,
-            searchEngine: this.searchEngine
+            searchEngine: query.platform || this.searchEngine // 使用查询指定的平台或默认平台
           })
           nodeTimer.start(`search_execution_attempt_${attempt}`)
           const response = await searcher.run(searchText, ancestorResponses)
