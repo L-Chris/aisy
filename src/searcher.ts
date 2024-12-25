@@ -53,10 +53,9 @@ export class Searcher {
     }>
   ): Promise<Array<{title: string, description: string, url: string, relevance: number}>> {
     try {
-      const prompt = `请评估以下搜索结果与问题的相关性。
+      const prompt = `${PROMPT.RELEVANCE_EVALUATION}
 ## 问题
 ${question}
-
 ## 搜索结果
 ${searchResults.map((r, i) => `
 [${i}]
@@ -66,21 +65,7 @@ ${searchResults.map((r, i) => `
 ${r.metadata ? `附加信息:\n${Object.entries(r.metadata)
   .map(([k, v]) => `- ${k}: ${v}`).join('\n')}` : ''}
 链接: ${r.url}
-`).join('\n')}
-
-## 返回格式
-请返回 JSON 格式的数组，每个元素包含索引和相关性评分(0-100)。
-对于小红书等社交平台的内容，请特别关注:
-1. 作者是否是该领域的专业用户
-2. 内容的互动数据(点赞、评论等)
-3. 内容的时效性
-
-例如:
-[
-  {"index": 0, "relevance": 85},
-  {"index": 1, "relevance": 30}
-]
-只返回 JSON，不要其他说明。`
+`).join('\n')}`
       
           const response = await this.llmPool.next().generate(prompt, 'json_object')
           console.log(response)

@@ -27,17 +27,7 @@ export class QueryBuilder {
     const prompt = `${PROMPT.BUILD_QUERY}
 ## 问题
 ${content}
-${context ? `\n## 上下文\n${context}` : ''}
-## 注意
-1. 如果问题涉及指定平台时，请指定使用对应平台搜索: 小红书搜索、百度搜索
-
-## 返回JSON格式，返回中不需要注释，不需要额外添加任何内容
-{
-  "text": "搜索关键词",
-  "platform": "xiaohongshu", // 可选，指定使用小红书搜索
-  "commands": ["site:example.com"] // 可选的搜索命令
-}
-`
+${context ? `\n## 上下文\n${context}` : ''}`
     const response = await this.llmPool.next().generate(prompt)
     console.log(response, typeof response)
     try {

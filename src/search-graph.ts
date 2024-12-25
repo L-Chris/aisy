@@ -178,17 +178,13 @@ class SearchGraph {
       // 问题调整
       nodeTimer.start('question_adjustment')
       if (ancestorResponses.length > 0) {
-        const adjustPrompt = `请根据以下上下文，调整问题的描述，使其更具体和明确，以便于搜索引擎理解和搜索。
-## 注意
-- 若原问题已经足够明确，不需要根据上下文调整，直接返回原问题即可
+        const adjustPrompt = `${PROMPT.ADJUST_QUESTION}
 ## 上下文信息
 ${ancestorResponses
   .map(r => `问题：${r.content}\n回答：${r.answer}`)
   .join('\n---\n')}
 ## 原始问题
-${node.content}
-## 返回格式
-只返回调整后的问题，不需要任何解释。`
+${node.content}`
         adjustedQuestion = await this.llmPool.next().generate(adjustPrompt)
         console.log(
           `[ExecuteNode] Adjusted question from "${node.content}" to "${adjustedQuestion}"`
