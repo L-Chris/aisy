@@ -8,8 +8,9 @@ import { Query, QueryBuilder } from './query-builder'
 import { LLMPool } from './llm-pool'
 import { Config, defaultConfig } from './config'
 import { Timer } from './utils'
+import { EventEmitter } from 'events'
 
-class SearchGraph {
+class SearchGraph extends EventEmitter {
   private nodes: Map<string, Node>
   private edges: Map<string, Edge[]>
   private llmPool: LLMPool
@@ -20,6 +21,7 @@ class SearchGraph {
   private timer: Timer
 
   constructor (config: Config = defaultConfig) {
+    super()
     this.nodes = new Map()
     this.edges = new Map()
     this.llmPool = new LLMPool(config)
@@ -124,6 +126,14 @@ class SearchGraph {
       console.log(`[ProcessNodes] Creating node for content:`, node.content)
       const newNode = this.addNode(node.content, parentId)
 
+      // 发送新节点创建的事件
+      this.emit('progress', {
+        nodeId: newNode.id,
+        status: 'created',
+        content: newNode.content,
+        children: node.children?.map(child => child.content)
+      })
+
       console.log(`[ProcessNodes] Executing node ${newNode.id}`)
       await this.executeNode(newNode.id)
 
@@ -163,6 +173,13 @@ class SearchGraph {
     }
 
     try {
+      // 发送节点开始执行的事件
+      this.emit('progress', {
+        nodeId,
+        status: 'running',
+        content: node.content
+      })
+
       node.state = NODE_STATE.RUNNING
       // 获取所有祖先节点的问答信息
       const ancestors = this.getAllAncestors(nodeId)
@@ -205,23 +222,29 @@ ${node.content}`
           nodeTimer.end(`query_building_attempt_${attempt}`)
 
           // 执行搜索
-          const searchText = query.commands 
+          const searchText = query.commands
             ? `${query.text} ${query.commands.join(' ')}`
             : query.text
 
-          const searcher = new Searcher({ 
+          const searcher = new Searcher({
             proxy: this.proxy,
             searchEngine: query.platform || this.searchEngine // 使用查询指定的平台或默认平台
           })
           nodeTimer.start(`search_execution_attempt_${attempt}`)
-          const response = await searcher.run(node.content, searchText, ancestorResponses)
+          const response = await searcher.run(
+            node.content,
+            searchText,
+            ancestorResponses
+          )
           nodeTimer.end(`search_execution_attempt_${attempt}`)
 
           // 检查搜索结果是否有效
           if (
             response.pages.length > 0 &&
             response.answer &&
-            !['没有找到相关链接', '未找到足够相关的网页内容'].includes(response.answer)
+            !['没有找到相关链接', '未找到足够相关的网页内容'].includes(
+              response.answer
+            )
           ) {
             node.answer = response.answer
             node.pages = response.pages
@@ -249,6 +272,16 @@ ${node.content}`
               searchMetrics: response.timing
             })
 
+            // 在节点执行成功时发送事件
+            this.emit('progress', {
+              nodeId,
+              status: 'finished',
+              content: node.content,
+              answer: node.answer,
+              pages: node.pages,
+              timing: nodeTimer.getMetrics()
+            })
+
             return // 成功找到答案，退出重试循环
           }
 
@@ -268,6 +301,13 @@ ${node.content}`
             `[ExecuteNode] Attempt ${attempt} error for node ${nodeId}:`,
             error
           )
+          // 在节点执行失败时发送事件
+          this.emit('progress', {
+            nodeId,
+            status: 'error',
+            content: node.content,
+            error: getErrorMessage(error)
+          })
           if (attempt === 2) throw error // 第二次尝试时的错误直接抛出
         }
       }

@@ -1,32 +1,29 @@
-import express from 'express'
-import cors from 'cors'
+import Koa from 'koa'
+import Router from 'koa-router'
+import bodyParser from 'koa-bodyparser'
+import cors from 'koa-cors'
 import { SearchGraph } from './search-graph'
 import { defaultConfig } from './config'
 import { Timer } from './utils'
+import { SearchEvent, SearchProgress } from './types'
 
-const app = express()
+const app = new Koa()
+const router = new Router()
+
+// 中间件
 app.use(cors())
-app.use(express.json())
+app.use(bodyParser())
 
 const searchGraph = new SearchGraph(defaultConfig)
-
-interface SearchProgress {
-  nodeId: string
-  status: 'running' | 'finished' | 'error'
-  content: string
-  answer?: string
-  pages?: any[]
-  timing?: any
-  children?: string[]
-}
 
 const searchProgress = new Map<string, {
   progress: Map<string, SearchProgress>
   timer: Timer
 }>()
 
-app.post('/api/search', async (req, res) => {
-  const { question } = req.body
+// 搜索接口
+router.post('/api/search', async (ctx) => {
+  const { question } = ctx.request.body as { question: string }
   const searchId = Math.random().toString(36).substring(2)
   
   try {
@@ -37,12 +34,12 @@ app.post('/api/search', async (req, res) => {
     })
 
     // 监听搜索进度
-    const progressHandler = (event: any) => {
+    const progressHandler = (event: SearchEvent) => {
       const progress = searchProgress.get(searchId)?.progress
       if (progress && event.nodeId) {
         progress.set(event.nodeId, {
           nodeId: event.nodeId,
-          status: event.status,
+          status: event.status as 'running' | 'finished' | 'error',
           content: event.content,
           answer: event.answer,
           pages: event.pages,
@@ -60,43 +57,56 @@ app.post('/api/search', async (req, res) => {
     searchGraph.off('progress', progressHandler)
     searchProgress.delete(searchId)
 
-    res.json({
+    ctx.body = {
       success: true,
-      data: result
-    })
-  } catch (error) {
+      data: {
+        searchId,
+        ...result
+      }
+    }
+  } catch (error: any) {
     console.error('Search error:', error)
-    res.status(500).json({
+    ctx.status = 500
+    ctx.body = {
       success: false,
       error: error.message
-    })
+    }
   }
 })
 
-app.get('/api/search/:searchId/progress', (req, res) => {
-  const { searchId } = req.params
+// 进度查询接口
+router.get('/api/search/:searchId/progress', async (ctx) => {
+  const { searchId } = ctx.params
   const search = searchProgress.get(searchId)
-  
+
   if (!search) {
-    return res.status(404).json({
+    ctx.status = 404
+    ctx.body = {
       success: false,
       error: 'Search not found'
-    })
+    }
+    return
   }
 
   const progressData = Array.from(search.progress.values())
   const timing = search.timer.getMetrics()
 
-  res.json({
+  ctx.body = {
     success: true,
     data: {
       progress: progressData,
       timing
     }
-  })
+  }
 })
+
+// 注册路由
+app.use(router.routes())
+app.use(router.allowedMethods())
 
 const port = process.env.PORT || 3000
 app.listen(port, () => {
   console.log(`Server running on port ${port}`)
-}) 
+})
+
+export default app 

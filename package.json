@@ -17,17 +17,22 @@
     "test": "ts-node test/index.ts"
   },
   "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.18.2",
     "dotenv": "^16.4.5",
     "https-proxy-agent": "^7.0.6",
+    "koa": "^2.15.3",
+    "koa-bodyparser": "^4.4.1",
+    "koa-cors": "^0.0.16",
+    "koa-router": "^13.0.1",
     "puppeteer": "^22.0.0",
-    "queue": "^7.0.0",
-    "crypto": "^1.0.1"
+    "queue": "^7.0.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
+    "@types/koa": "^2.15.0",
+    "@types/koa-bodyparser": "^4.3.12",
+    "@types/koa-cors": "^0.0.6",
+    "@types/koa-router": "^7.4.8",
     "@types/node": "^20.11.16",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.3.3"
