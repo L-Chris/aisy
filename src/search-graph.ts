@@ -1,6 +1,6 @@
 import { Page, Searcher } from './searcher'
 import { Browser } from './browser'
-import { getErrorMessage, getUUID } from './utils'
+import { getErrorMessage, getUUID, normalizeLLMResponse } from './utils'
 import { PROMPT } from './prompts'
 import fs from 'fs'
 import path from 'path'
@@ -56,7 +56,7 @@ class SearchGraph {
       console.log('[Plan] LLM Response:', res)
       this.logAndSave('plan_llm_response', { question: content, response: res })
 
-      const qs = JSON.parse(res)
+      const qs = normalizeLLMResponse(res)
       const nodes = Array.isArray(qs?.nodes) ? (qs.nodes as RawNode[]) : []
       console.log(
         '[Plan] Parsed nodes structure:',
@@ -214,7 +214,7 @@ ${node.content}`
             searchEngine: query.platform || this.searchEngine // 使用查询指定的平台或默认平台
           })
           nodeTimer.start(`search_execution_attempt_${attempt}`)
-          const response = await searcher.run(searchText, ancestorResponses)
+          const response = await searcher.run(node.content, searchText, ancestorResponses)
           nodeTimer.end(`search_execution_attempt_${attempt}`)
 
           // 检查搜索结果是否有效

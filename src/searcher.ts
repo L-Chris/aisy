@@ -1,4 +1,4 @@
-import { createQueue, getErrorMessage } from './utils'
+import { createQueue, getErrorMessage, normalizeLLMResponse } from './utils'
 import { PROMPT } from './prompts'
 import { LLMPool } from './llm-pool'
 import { Browser } from './browser'
@@ -68,8 +68,7 @@ ${r.metadata ? `附加信息:\n${Object.entries(r.metadata)
 `).join('\n')}`
       
           const response = await this.llmPool.next().generate(prompt, 'json_object')
-          console.log(response)
-          const scores = JSON.parse(response.replace(/^```json\s*\n/, '').replace(/\n```$/, '')) as Array<{index: number, relevance: number}>
+          const scores = normalizeLLMResponse(response) as Array<{index: number, relevance: number}>
           
           return searchResults.map((result, index) => {
             const score = scores.find(s => s.index === index)?.relevance || 0
@@ -89,6 +88,7 @@ ${r.metadata ? `附加信息:\n${Object.entries(r.metadata)
    */
   async run (
     content: string,
+    query: string,
     parentResponses: QuestionAnswer[]
   ) {
     const timer = new Timer()
@@ -102,7 +102,7 @@ ${r.metadata ? `附加信息:\n${Object.entries(r.metadata)
     })
 
     timer.start('search_links')
-    const links = await this.browser.search(content)
+    const links = await this.browser.search(query)
     timer.end('search_links')
 
     if (links.length === 0) {
@@ -149,23 +149,26 @@ ${r.metadata ? `附加信息:\n${Object.entries(r.metadata)
           console.log(`[Cache] Hit for URL: ${link.url}`)
           cb(undefined, { 
             ...link, 
-            content: cached.content, 
+            content: cached.content,
+            url: cached.finalUrl,
             success: true 
           })
           return
         }
 
-        const text = await this.browser.fetch(link.url)
-        if (text) {
+        const result = await this.browser.fetch(link.url)
+        if (result.content) {
           this.urlCache.set(cacheKey, {
-            content: text,
+            content: result.content,
+            finalUrl: result.finalUrl,
             timestamp: Date.now()
           })
         }
         cb(undefined, { 
           ...link, 
-          content: text, 
-          success: !!text 
+          content: result.content,
+          url: result.finalUrl,
+          success: !!result.content 
         })
       })
     }
@@ -215,6 +218,7 @@ ${p.metadata ? `- 附加信息：\n  ${Object.entries(p.metadata)
 
 interface CacheItem {
   content: string
+  finalUrl: string
   timestamp: number
 }
 

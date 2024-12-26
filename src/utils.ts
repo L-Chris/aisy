@@ -1,4 +1,3 @@
-import crypto from 'crypto';
 import Queue, { QueueWorkerCallback } from 'queue'
 
 export const createQueue = (params: {
@@ -118,5 +117,15 @@ export class Timer {
 
   getMetrics() {
     return this.metrics
+  }
+}
+
+export const normalizeLLMResponse = (response: string) => {
+  const res = response.replace(/```json\s*\n/g, '').replace(/\n```$/g, '')
+  try {
+    return JSON.parse(res)
+  } catch (error) {
+    console.error('Failed to parse LLM response:', error)
+    return response
   }
 }

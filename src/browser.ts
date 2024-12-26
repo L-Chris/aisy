@@ -99,10 +99,13 @@ export class Browser {
     let page: Page | undefined
     try {
       page = await this.initBrowser()
-      await page.goto(url, { 
+      const response = await page.goto(url, { 
         waitUntil: 'networkidle0',
         timeout: 10000
       })
+      
+      // 获取最终的 URL（处理重定向后的地址）
+      const finalUrl = response?.url() || url
       
       const content = await page.evaluate(() => {
         // @ts-ignore
@@ -116,10 +119,17 @@ export class Browser {
         return document.body.innerText
       })
       
-      return content
+      // 返回包含最终 URL 的对象
+      return {
+        content,
+        finalUrl
+      }
     } catch (e) {
       console.error(`[request] error ${getErrorMessage(e)}`)
-      return ''
+      return {
+        content: '',
+        finalUrl: url
+      }
     } finally {
       if (page) {
         await this.releasePage(page)
@@ -192,7 +202,7 @@ export class Browser {
     await page.goto(`${this.baseURL}?wd=${encodeURIComponent(keyword)}`, { waitUntil: 'networkidle0' })
     await page.waitForSelector('.result.c-container')
     
-    const results = await page.evaluate(() => {
+    return await page.evaluate(() => {
       // @ts-ignore
       const items = document.querySelectorAll('.result.c-container')
       return Array.from(items).map(item => {
@@ -202,28 +212,14 @@ export class Browser {
         const url = titleEl?.getAttribute('href') || ''
         // @ts-ignore
         const description = item.querySelector('.c-span9')?.textContent?.trim() || ''
-        return { title, url, description }
+        return { 
+          title, 
+          url, 
+          description,
+          platform: 'baidu'
+        }
       }).filter(item => item.url)
     })
-
-    // 处理百度的重定向链接
-    const processedResults = []
-    for (const result of results) {
-      try {
-        const response = await page.goto(result.url, { waitUntil: 'networkidle0' })
-        const finalUrl = response?.url() || result.url
-        if (!finalUrl.includes('baidu.com')) {
-          processedResults.push({
-            ...result,
-            url: finalUrl
-          })
-        }
-      } catch (error) {
-        console.error(`Failed to process URL: ${result.url}`, error)
-      }
-    }
-
-    return processedResults
   }
 
   private async searchBing(page: Page, keyword: string) {
@@ -250,7 +246,10 @@ export class Browser {
       return this.request(url)
     } catch (e) {
       console.error(`[fetch] error ${getErrorMessage(e)}`)
-      return ''
+      return {
+        finalUrl: url,
+        content: '',
+      }
     }
   }
 

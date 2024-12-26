@@ -3,7 +3,7 @@ import dotenv from 'dotenv'
 dotenv.config()
 
 export interface LLMConfig {
-  type: 'deepseek' | 'qwen' | 'kimi'
+  type: 'deepseek' | 'qwen' | 'kimi' | 'doubao'
   apiKey: string
   endpoint: string
   model: string
@@ -34,17 +34,23 @@ export const defaultConfig: Config = {
         endpoint: process.env.DEEPSEEK_ENDPOINT || '',
         model: 'deepseek'
       },
-      {
-        type: 'qwen',
-        apiKey: process.env.QWEN_API_KEY || '',
-        endpoint: process.env.QWEN_ENDPOINT || '',
-        model: 'qwen'
-      },
+      // {
+      //   type: 'qwen',
+      //   apiKey: process.env.QWEN_API_KEY || '',
+      //   endpoint: process.env.QWEN_ENDPOINT || '',
+      //   model: 'qwen'
+      // },
       {
         type: 'kimi',
         apiKey: process.env.KIMI_API_KEY || '',
         endpoint: process.env.KIMI_ENDPOINT || '',
         model: 'kimi'
+      },
+      {
+        type: 'doubao',
+        apiKey: process.env.DOUBAO_API_KEY || '',
+        endpoint: process.env.DOUBAO_ENDPOINT || '',
+        model: 'doubao'
       }
     ]
   },

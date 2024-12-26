@@ -5,7 +5,7 @@ import { getErrorMessage } from './utils'
 export class LLM {
   private config: LLMConfig
 
-  constructor(config: LLMConfig) {
+  constructor (config: LLMConfig) {
     this.config = config
   }
 
@@ -15,22 +15,22 @@ export class LLM {
         method: 'POST',
         url: this.config.endpoint,
         headers: {
-        Authorization: `Bearer ${this.config.apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      data: {
-        model: this.config.model,
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        stream: false
-      }
-    })
+          Authorization: `Bearer ${this.config.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        data: {
+          model: this.config.model,
+          messages: [
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          stream: false
+        }
+      })
 
-    const data = res.data as LLMResponse
+      const data = res.data as LLMResponse
 
       return data.choices[0].message.content
     } catch (e) {

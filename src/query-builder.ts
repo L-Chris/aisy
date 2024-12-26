@@ -1,5 +1,6 @@
 import { LLMPool } from './llm-pool'
 import { PROMPT } from './prompts'
+import { normalizeLLMResponse } from './utils'
 
 interface QueryBuilderOptions {
   maxQueries?: number // 最大查询数量，默认3
@@ -29,11 +30,8 @@ export class QueryBuilder {
 ${content}
 ${context ? `\n## 上下文\n${context}` : ''}`
     const response = await this.llmPool.next().generate(prompt)
-    console.log(response, typeof response)
     try {
-      const result = JSON.parse(
-        response.replace(/^```json\s*\n/, '').replace(/\n```$/, '')
-      )
+      const result = normalizeLLMResponse(response)
       return this.optimize(result)
     } catch (error) {
       console.log('[query-builder] error', error)
