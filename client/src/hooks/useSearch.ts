@@ -22,10 +22,26 @@ export function useSearch() {
         
         if (data.success) {
           setProgress(data.data.progress)
+          
+          // 处理最终结果
+          if (data.data.completed) {
+            if (data.data.error) {
+              setError(data.data.error)
+            } else if (data.data.result) {
+              setResult(data.data.result)
+            }
+            setSearchId(undefined) // 停止轮询
+            setLoading(false)
+            return
+          }
+          
           timer = setTimeout(pollProgress, 1000)
         }
       } catch (err) {
         console.error('Failed to fetch progress:', err)
+        setError('获取搜索进度失败')
+        setSearchId(undefined)
+        setLoading(false)
       }
     }
 
@@ -42,6 +58,7 @@ export function useSearch() {
     setLoading(true)
     setError(undefined)
     setResult(undefined)
+    setProgress([])
     
     try {
       const res = await fetch(`${API_URL}/api/search`, {
@@ -56,14 +73,12 @@ export function useSearch() {
       
       if (data.success) {
         setSearchId(data.data.searchId)
-        setResult(data.data)
       } else {
         setError(data.error)
       }
     } catch (err) {
       setError('搜索请求失败')
       console.error('Search error:', err)
-    } finally {
       setLoading(false)
     }
   }

@@ -36,11 +36,18 @@ class SearchGraph extends EventEmitter {
     this.timer = new Timer()
   }
 
-  private logAndSave (type: string, data: any) {
+  private async logAndSave (type: string, data: any) {
     const timestamp = new Date().getTime()
     const logFile = path.join(this.logDir, `${type}_${timestamp}.json`)
-    fs.writeFileSync(logFile, JSON.stringify(data, null, 2))
-    console.log(`[${type}] Saved to ${logFile}`)
+    
+    // 异步写入日志，不等待完成
+    fs.promises.writeFile(logFile, JSON.stringify(data, null, 2))
+      .then(() => {
+        console.log(`[${type}] Saved to ${logFile}`)
+      })
+      .catch(error => {
+        console.error(`[${type}] Failed to save log:`, error)
+      })
   }
 
   async plan (content: string) {
@@ -78,34 +85,47 @@ class SearchGraph extends EventEmitter {
 
       this.timer.end('total')
 
-      // Save timing metrics
+      // 异步记录时间指标
       this.logAndSave('timing_metrics', {
         question: content,
         metrics: this.timer.getMetrics()
       })
 
-      // 保存最终的搜索图结构
+      // 异步记录最终的搜索图结构
       this.logAndSave('final_search_graph', {
         nodes: Array.from(this.nodes.entries()),
         edges: Array.from(this.edges.entries())
       })
 
+      // 从所有节点收集访问的网页
+      const allPages: Page[] = []
+      for (const [_, node] of this.nodes) {
+        if (node.pages && Array.isArray(node.pages)) {
+          allPages.push(...node.pages)
+        }
+      }
+
       return {
         nodes: this.nodes,
         edges: this.edges,
         answer: root.answer || '',
-        timing: this.timer.getMetrics()
+        timing: this.timer.getMetrics(),
+        pages: allPages
       }
     } catch (error) {
       this.timer.end('total')
       console.error(`[Plan] Error:`, error)
+      
+      // 异步记录错误
       this.logAndSave('plan_error', {
         error: getErrorMessage(error),
         question: content
       })
+
       return {
-        nodes: new Map(),
-        edges: new Map(),
+        nodes: new Map() as Map<string, Node>,
+        edges: new Map() as Map<string, Edge[]>,
+        pages: [],
         answer: '',
         timing: this.timer.getMetrics()
       }
@@ -252,7 +272,7 @@ ${node.content}`
             node.queries = node.queries || []
             node.queries.push(query)
 
-            // 记录成功的结果
+            // 异步记录结果
             this.logAndSave(`node_${nodeId}_result`, {
               nodeId,
               attempt,
@@ -264,7 +284,7 @@ ${node.content}`
               ancestorResponses
             })
 
-            // 记录节点执行时间
+            // 异步记录时间
             this.logAndSave(`node_${nodeId}_timing`, {
               nodeId,
               attempt,
@@ -285,7 +305,7 @@ ${node.content}`
             return // 成功找到答案，退出重试循环
           }
 
-          // 如果是第一次尝试失败，记录失败信息并继续第二次尝试
+          // 如果是第一次尝试失败，异步记录失败信息
           if (attempt === 1) {
             console.log(
               `[ExecuteNode] First attempt failed for node ${nodeId}, trying with adjusted query...`
@@ -491,7 +511,7 @@ ${node.content}`
 
 type NodeType = 'root' | 'searcher'
 
-interface Node {
+export interface Node {
   id: string
   type: NodeType
   content: string
@@ -506,7 +526,7 @@ interface RawNode {
   children: RawNode[]
 }
 
-interface Edge {
+export interface Edge {
   id: string
   name: string
 }

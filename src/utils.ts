@@ -135,7 +135,8 @@ export const normalizeLLMResponse = (response: string) => {
 export const cleanLogs = () => {
   const logsDir = path.join(process.cwd(), 'logs');
   if (fs.existsSync(logsDir)) {
-    fs.rmSync(logsDir, { recursive: true, force: true })
+    fs.rmSync(logsDir, { recursive: true, force: true });
+    fs.mkdirSync(logsDir);
     console.log('已清除logs目录下的所有文件');
   }
 }

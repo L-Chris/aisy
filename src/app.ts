@@ -2,10 +2,11 @@ import Koa from 'koa'
 import Router from 'koa-router'
 import bodyParser from 'koa-bodyparser'
 import cors from 'koa-cors'
-import { SearchGraph } from './search-graph'
+import { Node, Edge, SearchGraph } from './search-graph'
 import { defaultConfig } from './config'
-import { cleanLogs, Timer } from './utils'
+import { cleanLogs, Timer, TimingInfo } from './utils'
 import { SearchEvent, SearchProgress } from './types'
+import { Page } from './searcher'
 
 const app = new Koa()
 const router = new Router()
@@ -19,6 +20,14 @@ const searchGraph = new SearchGraph(defaultConfig)
 const searchProgress = new Map<string, {
   progress: Map<string, SearchProgress>
   timer: Timer
+  result?: {
+    nodes: Map<string, Node>
+    edges: Map<string, Edge[]>
+    answer: string
+    timing: TimingInfo
+    pages: Page[]
+  }
+  error?: string
 }>()
 
 // 搜索接口
@@ -42,7 +51,7 @@ router.post('/api/search', async (ctx) => {
           status: event.status as 'running' | 'finished' | 'error',
           content: event.content,
           answer: event.answer,
-          pages: event.pages,
+          pages: event.pages || [],
           timing: event.timing,
           children: event.children
         })
@@ -51,18 +60,35 @@ router.post('/api/search', async (ctx) => {
 
     searchGraph.on('progress', progressHandler)
     cleanLogs()
-    // 执行搜索
-    const result = await searchGraph.plan(question)
-    searchGraph.off('progress', progressHandler)
-    searchProgress.delete(searchId)
 
+    // 立即返回 searchId
     ctx.body = {
       success: true,
       data: {
-        searchId,
-        ...result
+        searchId
       }
     }
+
+    // 异步执行搜索
+    searchGraph.plan(question).then(result => {
+      const search = searchProgress.get(searchId)
+      if (search) {
+        search.result = result
+      }
+    }).catch(error => {
+      console.error('Search error:', error)
+      const search = searchProgress.get(searchId)
+      if (search) {
+        search.error = error.message
+      }
+    }).finally(() => {
+      searchGraph.off('progress', progressHandler)
+      // 不要立即删除进度信息，让前端可以获取最终结果
+      setTimeout(() => {
+        searchProgress.delete(searchId)
+      }, 5000) // 5秒后清理
+    })
+
   } catch (error: any) {
     console.error('Search error:', error)
     ctx.status = 500
@@ -73,7 +99,7 @@ router.post('/api/search', async (ctx) => {
   }
 })
 
-// 进度查询接口
+// 修改进度查询接口，增加返回最终结果
 router.get('/api/search/:searchId/progress', async (ctx) => {
   const { searchId } = ctx.params
   const search = searchProgress.get(searchId)
@@ -94,7 +120,10 @@ router.get('/api/search/:searchId/progress', async (ctx) => {
     success: true,
     data: {
       progress: progressData,
-      timing
+      timing,
+      result: search.result, // 返回最终结果
+      error: search.error,   // 返回错误信息
+      completed: !!search.result || !!search.error // 标记是否完成
     }
   }
 })
