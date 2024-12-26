@@ -37,8 +37,8 @@ export class Searcher {
   }
 
   private isValidCache(cacheItem: CacheItem): boolean {
-    // 缓存有效期为1小时
-    const CACHE_TTL = 60 * 60 * 1000
+    // 缓存有效期延长到24小时
+    const CACHE_TTL = 24 * 60 * 60 * 1000 
     return Date.now() - cacheItem.timestamp < CACHE_TTL
   }
 
@@ -94,6 +94,7 @@ ${r.metadata ? `附加信息:\n${Object.entries(r.metadata)
     const timer = new Timer()
     timer.start('total_search')
 
+    // 创建并发队列
     const queue = createQueue({
       name: 'fetch:content',
       concurrency: this.maxConcurrency,
@@ -115,7 +116,7 @@ ${r.metadata ? `附加信息:\n${Object.entries(r.metadata)
       }
     }
 
-    // 评估相关性
+    // 快速评估相关性
     timer.start('evaluate_relevance')
     const evaluatedLinks = await this.evaluateRelevance(content, links)
     // 过滤掉相关性低于 50 分的结果

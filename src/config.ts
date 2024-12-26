@@ -61,7 +61,7 @@ export const defaultConfig: Config = {
     ]
   },
   searchEngine: 'baidu',
-  maxConcurrency: 5,
-  timeout: 10000,
-  maxResults: 5
+  maxConcurrency: 10,
+  timeout: 8000,
+  maxResults: 3
 } 

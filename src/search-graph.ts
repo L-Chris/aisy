@@ -136,17 +136,13 @@ class SearchGraph extends EventEmitter {
   }
 
   private async processNodes (nodes: RawNode[], parentId: string) {
-    console.log(
-      `\n[ProcessNodes] Processing ${nodes.length} nodes for parent:`,
-      parentId
-    )
+    console.log(`\n[ProcessNodes] Processing ${nodes.length} nodes for parent:`, parentId)
 
-    // 然后串行处理每个子节点
-    for (const node of nodes) {
+    // 并行处理所有子节点
+    const promises = nodes.map(async node => {
       console.log(`[ProcessNodes] Creating node for content:`, node.content)
       const newNode = this.addNode(node.content, parentId)
 
-      // 发送新节点创建的事件
       this.emit('progress', {
         nodeId: newNode.id,
         status: 'created',
@@ -154,17 +150,14 @@ class SearchGraph extends EventEmitter {
         children: node.children?.map(child => child.content)
       })
 
-      console.log(`[ProcessNodes] Executing node ${newNode.id}`)
       await this.executeNode(newNode.id)
 
       if (Array.isArray(node.children) && node.children.length > 0) {
-        console.log(
-          `[ProcessNodes] Node ${newNode.id} has ${node.children.length} children`
-        )
         await this.processNodes(node.children, newNode.id)
       }
-    }
+    })
 
+    await Promise.all(promises)
     console.log(`[ProcessNodes] Completed all nodes for parent:`, parentId)
   }
 

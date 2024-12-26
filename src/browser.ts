@@ -7,7 +7,7 @@ export class Browser {
   private static instance?: Browser
   private static browserInstance?: PuppeteerBrowser
   private static pagePool: Page[] = []
-  private static MAX_PAGES = 3
+  private static MAX_PAGES = 10
   private searchEngine: 'bing' | 'baidu' | 'xiaohongshu' = 'bing'
 
   constructor(options: { 
@@ -19,7 +19,7 @@ export class Browser {
     this.proxy = options.proxy
     this.searchEngine = options.searchEngine || 'bing'
     this.baseURL = options.baseURL || this.getDefaultBaseURL()
-    Browser.MAX_PAGES = options.maxPages || 3
+    Browser.MAX_PAGES = options.maxPages || 10
     if (!Browser.instance) {
       Browser.instance = this
     }
@@ -99,41 +99,28 @@ export class Browser {
     let page: Page | undefined
     try {
       page = await this.initBrowser()
-      const response = await page.goto(url, { 
-        waitUntil: 'networkidle0',
-        timeout: 10000
-      })
       
-      // 获取最终的 URL（处理重定向后的地址）
+      const response = await page.goto(url, { 
+        waitUntil: 'domcontentloaded',
+        timeout: 8000
+      })
+
       const finalUrl = response?.url() || url
       
       const content = await page.evaluate(() => {
-        // @ts-ignore
-        const scripts = document.getElementsByTagName('script')
-        // @ts-ignore
-        const styles = document.getElementsByTagName('style')
-        for (const element of [...scripts, ...styles]) {
-          element.remove()
-        }
-        // @ts-ignore
-        return document.body.innerText
+        const elementsToRemove = document.querySelectorAll('script, style, iframe, nav, footer, header, aside')
+        elementsToRemove.forEach(el => el.remove())
+
+        const mainContent = document.querySelector('main, article, .content, #content')
+        return mainContent ? mainContent.innerText : document.body.innerText
       })
-      
-      // 返回包含最终 URL 的对象
-      return {
-        content,
-        finalUrl
-      }
+
+      return { content, finalUrl }
     } catch (e) {
       console.error(`[request] error ${getErrorMessage(e)}`)
-      return {
-        content: '',
-        finalUrl: url
-      }
+      return { content: '', finalUrl: url }
     } finally {
-      if (page) {
-        await this.releasePage(page)
-      }
+      if (page) await this.releasePage(page)
     }
   }
 
