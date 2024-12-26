@@ -12,11 +12,12 @@
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build",
-    "dev:server": "ts-node-dev --respawn src/server/app.ts",
-    "start": "node dist/server/app.js",
+    "dev": "ts-node-dev --respawn src/app.ts",
+    "start": "node dist/app.js",
     "test": "ts-node test/index.ts"
   },
   "dependencies": {
+    "axios": "^1.7.9",
     "dotenv": "^16.4.5",
     "https-proxy-agent": "^7.0.6",
     "koa": "^2.15.3",
@@ -24,7 +25,7 @@
     "koa-cors": "^0.0.16",
     "koa-router": "^13.0.1",
     "puppeteer": "^22.0.0",
-    "queue": "^7.0.0"
+    "queue": "^6.0.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

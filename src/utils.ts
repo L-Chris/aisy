@@ -1,3 +1,5 @@
+import fs from 'fs'
+import path from 'path'
 import Queue, { QueueWorkerCallback } from 'queue'
 
 export const createQueue = (params: {
@@ -127,5 +129,13 @@ export const normalizeLLMResponse = (response: string) => {
   } catch (error) {
     console.error('Failed to parse LLM response:', error)
     return response
+  }
+}
+
+export const cleanLogs = () => {
+  const logsDir = path.join(process.cwd(), 'logs');
+  if (fs.existsSync(logsDir)) {
+    fs.rmSync(logsDir, { recursive: true, force: true })
+    console.log('已清除logs目录下的所有文件');
   }
 }

@@ -4,7 +4,7 @@ import bodyParser from 'koa-bodyparser'
 import cors from 'koa-cors'
 import { SearchGraph } from './search-graph'
 import { defaultConfig } from './config'
-import { Timer } from './utils'
+import { cleanLogs, Timer } from './utils'
 import { SearchEvent, SearchProgress } from './types'
 
 const app = new Koa()
@@ -50,10 +50,9 @@ router.post('/api/search', async (ctx) => {
     }
 
     searchGraph.on('progress', progressHandler)
-    
+    cleanLogs()
     // 执行搜索
     const result = await searchGraph.plan(question)
-    
     searchGraph.off('progress', progressHandler)
     searchProgress.delete(searchId)
 
