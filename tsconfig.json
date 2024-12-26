@@ -1,15 +1,17 @@
 {
   "compilerOptions": {
-    "target": "es2017",
-    "module": "commonjs",
-    "lib": ["es2017"],
+    "target": "ES2020",
+    "module": "CommonJS",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
     "strict": true,
-    "outDir": "./dist",
-    "rootDir": "./src",
+    "moduleResolution": "node",
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "dist",
+    "rootDir": "src"
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "client/src/hooks", "client/App.tsx", "client/components", "src/app.ts", "client/src/components/SearchProgress.tsx", "client/src/components/SearchResult.tsx"],
   "exclude": ["node_modules"]
 } 
