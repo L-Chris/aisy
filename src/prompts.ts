@@ -11,10 +11,9 @@ export const PROMPT = {
 ## 任务2要求
 1. 每个子问题需要构建一个搜索查询，使用简洁、准确的关键字，避免重复概念，避免口语化表达
 2. 如果涉及特定领域或时间范围，添加相应的搜索指令
-3. 保持核心搜索意图
-4. 关键字和搜索指令不要出现重复概念
-5. 如果问题涉及指定平台时，请指定使用对应平台搜索: 小红书搜索、百度搜索
-6. 若子问题query引用到父问题的回答时，请text_template字段添加父问题的回答，待引用信息用{}包裹
+3. 关键字和搜索指令不要出现重复概念
+4. 如果问题涉及指定平台时，请指定使用对应平台搜索: 小红书搜索、百度搜索
+5. 若子问题query引用到父问题的回答时，请text_template字段添加父问题的回答，待引用信息用{}包裹
 
 
 ## 返回格式示例，结果为JSON格式
@@ -26,6 +25,7 @@ export const PROMPT = {
         {
           "text": "子问题1搜索关键词",
           "text_template": "子问题1搜索关键词模板",
+          "platform": "xiaohongshu", // 可选，指定使用小红书搜索
           "commands": ["site:example.com"]
         }
       ],
@@ -37,6 +37,7 @@ export const PROMPT = {
             {
               "text": "子问题1.1搜索关键词",
               "text_template": "子问题1.1搜索关键词模板",
+              "platform": "xiaohongshu", // 可选，指定使用小红书搜索
               "commands": ["site:example.com"]
             }
           ],
@@ -49,6 +50,7 @@ export const PROMPT = {
             {
               "text": "子问题1.2搜索关键词",
               "text_template": "子问题1.2搜索关键词模板",
+              "platform": "xiaohongshu", // 可选，指定使用小红书搜索
               "commands": ["site:example.com"]
             }
           ],
@@ -78,6 +80,7 @@ export const PROMPT = {
                 {
                     "text": "",
                     "text_template": "{answer}的特点",
+                    "platform": "baidu",
                     "commands": ["site:baike.baidu.com"]
                 }
             ]
