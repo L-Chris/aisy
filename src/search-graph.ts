@@ -244,8 +244,6 @@ ${JSON.stringify(node, null, 2)}`
             nodeTimer.end(`query_building_attempt_${attempt}`)
           }
 
-          console.log(query, node)
-
           // 执行搜索
           const searchText = query.commands
             ? `${query.text} ${query.commands.join(' ')}`
