@@ -121,7 +121,7 @@ ${r.metadata ? `附加信息:\n${Object.entries(r.metadata)
     const evaluatedLinks = await this.evaluateRelevance(content, links)
     // 过滤掉相关性低于 50 分的结果
     const relevantLinks = evaluatedLinks
-      .filter(link => link.relevance >= 50)
+      .filter(link => link.relevance >= 60)
       .sort((a, b) => b.relevance - a.relevance)
       .slice(0, this.maxResults)
       .map((link, i) => ({ ...link, id: i }))
