@@ -113,7 +113,8 @@ export class Browser {
 
         const mainContent = document.querySelector('main, article, .content, #content')
         // @ts-ignore
-        return mainContent ? mainContent.innerText : document.body.innerText
+        const result = mainContent ? mainContent.innerText : document.body.innerText
+        return (result || '').replace(/\n/g, '')
       })
 
       return { content, finalUrl }
