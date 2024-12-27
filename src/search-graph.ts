@@ -3,6 +3,7 @@ import { Browser } from './browser'
 import { getErrorMessage, getUUID, normalizeLLMResponse } from './utils'
 import { PROMPT } from './prompts'
 import fs from 'fs'
+import { writeFile, stat } from 'fs/promises'
 import path from 'path'
 import { Query, QueryBuilder } from './query-builder'
 import { LLMPool } from './llm-pool'
@@ -17,6 +18,7 @@ class SearchGraph extends EventEmitter {
   private proxy?: string
   private searchEngine: 'bing' | 'baidu'
   private logDir: string
+  private logs: {name: string; content: Record<string, any>}[] = []
   private queryBuilder: QueryBuilder
   private timer: Timer
 
@@ -29,25 +31,28 @@ class SearchGraph extends EventEmitter {
     this.proxy = config.proxy
     this.searchEngine = config.searchEngine || 'bing'
     this.logDir = path.join(process.cwd(), 'logs')
+    this.logs = []
+    this.timer = new Timer()
     // 确保日志目录存在
     if (!fs.existsSync(this.logDir)) {
       fs.mkdirSync(this.logDir, { recursive: true })
     }
-    this.timer = new Timer()
   }
 
-  private async logAndSave (type: string, data: any) {
+  private async addLog (type: string, data: any) {
     const timestamp = new Date().getTime()
-    const logFile = path.join(this.logDir, `${type}_${timestamp}.json`)
-    
-    // 异步写入日志，不等待完成
-    fs.promises.writeFile(logFile, JSON.stringify(data, null, 2))
-      .then(() => {
-        console.log(`[${type}] Saved to ${logFile}`)
-      })
-      .catch(error => {
-        console.error(`[${type}] Failed to save log:`, error)
-      })
+    const name = `${type}_${timestamp}.json`
+    this.logs.push({
+      name,
+      content: data
+    })
+  }
+
+  private async writeLogs() {
+    for (let log of this.logs) {
+      const logFile = path.join(this.logDir, log.name)
+      writeFile(logFile, JSON.stringify(log.content, null, 2))
+    }
   }
 
   async plan (content: string) {
@@ -62,7 +67,7 @@ class SearchGraph extends EventEmitter {
         .generate(`${PROMPT.PLAN}\n## 问题\n${content}\n`, 'json_object')
       this.timer.end('llm_planning')
 
-      this.logAndSave('plan_llm_response', { question: content, response: res })
+      this.addLog('plan_llm_response', { question: content, response: res })
 
       const qs = normalizeLLMResponse(res)
       const nodes = Array.isArray(qs?.nodes) ? (qs.nodes as RawNode[]) : []
@@ -85,13 +90,13 @@ class SearchGraph extends EventEmitter {
       this.timer.end('total')
 
       // 异步记录时间指标
-      this.logAndSave('timing_metrics', {
+      this.addLog('timing_metrics', {
         question: content,
         metrics: this.timer.getMetrics()
       })
 
       // 异步记录最终的搜索图结构
-      this.logAndSave('final_search_graph', {
+      this.addLog('final_search_graph', {
         nodes: Array.from(this.nodes.entries()),
         edges: Array.from(this.edges.entries())
       })
@@ -116,7 +121,7 @@ class SearchGraph extends EventEmitter {
       console.error(`[Plan] Error:`, error)
       
       // 异步记录错误
-      this.logAndSave('plan_error', {
+      this.addLog('plan_error', {
         error: getErrorMessage(error),
         question: content
       })
@@ -129,6 +134,7 @@ class SearchGraph extends EventEmitter {
         timing: this.timer.getMetrics()
       }
     } finally {
+      this.writeLogs()
       // 确保关闭浏览器实例
       await Browser.close()
     }
@@ -274,7 +280,7 @@ ${JSON.stringify(node, null, 2)}`
             node.state = NODE_STATE.FINISHED
 
             // 异步记录结果
-            this.logAndSave(`node_${nodeId}_result`, {
+            this.addLog(`node_${nodeId}_result`, {
               nodeId,
               attempt,
               originalContent: node.content,
@@ -285,7 +291,7 @@ ${JSON.stringify(node, null, 2)}`
             })
 
             // 异步记录时间
-            this.logAndSave(`node_${nodeId}_timing`, {
+            this.addLog(`node_${nodeId}_timing`, {
               nodeId,
               attempt,
               metrics: nodeTimer.getMetrics(),
@@ -310,7 +316,7 @@ ${JSON.stringify(node, null, 2)}`
             console.log(
               `[ExecuteNode] First attempt failed for node ${nodeId}, trying with adjusted query...`
             )
-            this.logAndSave(`node_${nodeId}_first_attempt_failed`, {
+            this.addLog(`node_${nodeId}_first_attempt_failed`, {
               nodeId,
               query,
               response
@@ -334,7 +340,7 @@ ${JSON.stringify(node, null, 2)}`
 
       // 如果两次尝试都失败，标记节点为错误状态
       node.state = NODE_STATE.ERROR
-      this.logAndSave(`node_${nodeId}_all_attempts_failed`, {
+      this.addLog(`node_${nodeId}_all_attempts_failed`, {
         nodeId,
         originalContent: node.content,
         adjustedContent: node.content
@@ -346,7 +352,7 @@ ${JSON.stringify(node, null, 2)}`
         const childNode = this.nodes.get(childId)
         if (childNode) {
           childNode.state = NODE_STATE.ERROR
-          this.logAndSave(`node_${childId}_skipped`, {
+          this.addLog(`node_${childId}_skipped`, {
             reason: `Parent node ${nodeId} failed`
           })
         }
@@ -354,7 +360,7 @@ ${JSON.stringify(node, null, 2)}`
     } catch (error) {
       console.error(`[ExecuteNode] Error for node ${nodeId}:`, error)
       node.state = NODE_STATE.ERROR
-      this.logAndSave(`node_${nodeId}_error`, {
+      this.addLog(`node_${nodeId}_error`, {
         nodeId,
         error: getErrorMessage(error),
         content: node.content
@@ -366,7 +372,7 @@ ${JSON.stringify(node, null, 2)}`
         const childNode = this.nodes.get(childId)
         if (childNode) {
           childNode.state = NODE_STATE.ERROR
-          this.logAndSave(`node_${childId}_skipped`, {
+          this.addLog(`node_${childId}_skipped`, {
             reason: `Parent node ${nodeId} failed with error`
           })
         }
@@ -410,7 +416,7 @@ ${JSON.stringify(node, null, 2)}`
 
     if (!allFinished) {
       console.error('[ProcessRoot] Some descendant nodes are not finished')
-      this.logAndSave('root_node_error', {
+      this.addLog('root_node_error', {
         descendants: descendants.map(c => ({
           id: c.id,
           state: c.state,
@@ -440,7 +446,7 @@ ${JSON.stringify(node, null, 2)}`
     root.answer = finalAnswer
     root.state = NODE_STATE.FINISHED
     console.log('[ProcessRoot] Root node processing completed')
-    this.logAndSave('root_node_result', {
+    this.addLog('root_node_result', {
       answer: finalAnswer,
       descendantResponses: responses
     })

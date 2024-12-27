@@ -81,7 +81,7 @@ export const PROMPT = {
                     "text": "",
                     "text_template": "{answer}的特点",
                     "platform": "baidu",
-                    "commands": ["site:baike.baidu.com"]
+                    "commands": []
                 }
             ]
         }
