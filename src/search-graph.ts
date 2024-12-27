@@ -272,8 +272,6 @@ ${JSON.stringify(node, null, 2)}`
             node.answer = response.answer
             node.pages = response.pages
             node.state = NODE_STATE.FINISHED
-            node.queries = node.queries || []
-            node.queries.push(query)
 
             // 异步记录结果
             this.logAndSave(`node_${nodeId}_result`, {

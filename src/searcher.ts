@@ -99,7 +99,7 @@ ${r.metadata ? `附加信息:\n${Object.entries(r.metadata)
       name: 'fetch:content',
       concurrency: this.maxConcurrency,
       timeout: this.timeout,
-      showProgress: true
+      showProgress: false
     })
 
     timer.start('search_links')
