@@ -65,6 +65,7 @@ export const createQueue = (params: {
 
           q.off('timeout', onTimeout)
           q.off('success', onSuccess)
+          q.results = []
           return resolve(true)
         })
       })

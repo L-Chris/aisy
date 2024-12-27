@@ -1,4 +1,4 @@
-import { Page, Searcher } from './searcher'
+import { Page, QuestionAnswer, Searcher } from './searcher'
 import { Browser } from './browser'
 import { getErrorMessage, getUUID, normalizeLLMResponse } from './utils'
 import { PROMPT } from './prompts'
@@ -62,7 +62,6 @@ class SearchGraph extends EventEmitter {
         .generate(`${PROMPT.PLAN}\n## 问题\n${content}\n`, 'json_object')
       this.timer.end('llm_planning')
 
-      console.log('[Plan] LLM Response:', res)
       this.logAndSave('plan_llm_response', { question: content, response: res })
 
       const qs = normalizeLLMResponse(res)
@@ -141,8 +140,12 @@ class SearchGraph extends EventEmitter {
     // 并行处理所有子节点
     const promises = nodes.map(async node => {
       console.log(`[ProcessNodes] Creating node for content:`, node.content)
-      const newNode = this.addNode(node.content, parentId)
-
+      const newNode = this.addNode(
+        node.content, 
+        parentId,
+        node.queries
+      )
+      
       this.emit('progress', {
         nodeId: newNode.id,
         status: 'created',
@@ -161,17 +164,20 @@ class SearchGraph extends EventEmitter {
     console.log(`[ProcessNodes] Completed all nodes for parent:`, parentId)
   }
 
-  private addNode (nodeContent: string, parentId: string): Node {
+  private addNode (nodeContent: string, parentId: string, queries: Query[] = []): Node {
     const node: Node = {
       id: getUUID(),
       content: nodeContent,
-      type: 'searcher',
+      type: 'node',
       state: NODE_STATE.NOT_STARTED,
       answer: '',
-      pages: []
+      pages: [],
+      queries
     }
     this.nodes.set(node.id, node)
-    this.addEdge(parentId, node.id)
+    if (parentId) {
+      this.addEdge(parentId, node.id)
+    }
     return node
   }
 
@@ -186,7 +192,6 @@ class SearchGraph extends EventEmitter {
     }
 
     try {
-      // 发送节点开始执行的事件
       this.emit('progress', {
         nodeId,
         status: 'running',
@@ -194,45 +199,52 @@ class SearchGraph extends EventEmitter {
       })
 
       node.state = NODE_STATE.RUNNING
-      // 获取所有祖先节点的问答信息
-      const ancestors = this.getAllAncestors(nodeId)
-      const ancestorResponses = ancestors
-        .map(id => this.nodes.get(id))
-        .filter((node): node is Node => !!node && !!node.answer)
-        .map(node => ({
-          content: node.content,
-          answer: node.answer || ''
-        }))
-      let adjustedQuestion = node.content
-
-      // 问题调整
+      const ancestorResponses = await this.getAncestorResponses(nodeId)
       nodeTimer.start('question_adjustment')
-      if (ancestorResponses.length > 0) {
-        const adjustPrompt = `${PROMPT.ADJUST_QUESTION}
+      if (ancestorResponses.length > 0 && (node.content_template || node.queries?.[0]?.text_template)) {
+        const adjustPrompt = `${PROMPT.ADJUST_NODE}
 ## 上下文信息
 ${ancestorResponses
   .map(r => `问题：${r.content}\n回答：${r.answer}`)
   .join('\n---\n')}
-## 原始问题
-${node.content}`
-        adjustedQuestion = await this.llmPool.next().generate(adjustPrompt)
-        console.log(
-          `[ExecuteNode] Adjusted question from "${node.content}" to "${adjustedQuestion}"`
-        )
-        node.content = adjustedQuestion
+## 节点数据
+${JSON.stringify(node, null, 2)}`
+        try {
+          const newNodeData = await this.llmPool.next().generate(adjustPrompt)
+          const newNode = normalizeLLMResponse(newNodeData) as Node
+          if (!newNode.content) {
+            throw new Error('LLM返回的不是JSON格式')
+          }
+          console.log(
+            `[ExecuteNode] Adjusted node from "${JSON.stringify(node, null, 2)}" to "${JSON.stringify(newNode, null, 2)}"`
+          )
+          node.content = newNode.content
+          node.queries = newNode.queries
+        } catch (error) {
+          console.error(`[ExecuteNode] Error adjusting node:`, error)
+        }
       }
+
       nodeTimer.end('question_adjustment')
 
       // 尝试最多两次搜索
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
           // 构建查询
-          nodeTimer.start(`query_building_attempt_${attempt}`)
-          const query = await this.queryBuilder.build(
-            attempt === 1 ? node.content : `${node.content} 另一种表述`,
-            attempt === 2 ? '请使用不同的关键词重新组织查询' : undefined
-          )
-          nodeTimer.end(`query_building_attempt_${attempt}`)
+          let query: Query
+
+          if (attempt === 1) {
+            query = node.queries[0]
+          } else {
+            nodeTimer.start(`query_building_attempt_${attempt}`)
+            query = await this.queryBuilder.build(
+              node.content,
+              "请使用不同的关键词重新组织查询"
+            )
+            nodeTimer.end(`query_building_attempt_${attempt}`)
+          }
+
+          console.log(query, node)
 
           // 执行搜索
           const searchText = query.commands
@@ -270,7 +282,6 @@ ${node.content}`
               nodeId,
               attempt,
               originalContent: node.content,
-              adjustedContent: adjustedQuestion,
               query,
               answer: node.answer,
               pages: node.pages,
@@ -330,7 +341,7 @@ ${node.content}`
       this.logAndSave(`node_${nodeId}_all_attempts_failed`, {
         nodeId,
         originalContent: node.content,
-        adjustedContent: adjustedQuestion
+        adjustedContent: node.content
       })
 
       // 不再处理该节点的子节点
@@ -459,7 +470,8 @@ ${node.content}`
       type: 'root',
       state: NODE_STATE.NOT_STARTED,
       answer: '',
-      pages: []
+      pages: [],
+      queries: []
     }
     this.nodes.set(node.id, node)
     this.edges.set(node.id, [])
@@ -500,23 +512,43 @@ ${node.content}`
     this.nodes.clear()
     this.edges.clear()
   }
+
+  // 新增：获取祖先节点的答案
+  private async getAncestorResponses(nodeId: string): Promise<QuestionAnswer[]> {
+    const ancestors = this.getAllAncestors(nodeId)
+    const responses: QuestionAnswer[] = []
+
+    for (const ancestorId of ancestors) {
+      const ancestorNode = this.nodes.get(ancestorId)
+      if (ancestorNode && ancestorNode.answer) {
+        responses.push({
+          content: ancestorNode.content,
+          answer: ancestorNode.answer
+        })
+      }
+    }
+
+    return responses
+  }
 }
 
-type NodeType = 'root' | 'searcher'
+type NodeType = 'root' | 'node'
 
 export interface Node {
   id: string
-  type: NodeType
   content: string
-  answer?: string
-  pages?: Page[]
+  content_template?: string
+  type: NodeType
   state: NODE_STATE
-  queries?: Query[]
+  answer: string
+  pages: Page[]
+  queries: Query[]  // 保留 queries 数组,用于存储查询模板和实际查询
 }
 
 interface RawNode {
   content: string
-  children: RawNode[]
+  children?: RawNode[]
+  queries?: Query[]  // 添加 queries 数组,存储 LLM 规划的查询模板
 }
 
 export interface Edge {

@@ -112,6 +112,7 @@ export class Browser {
         elementsToRemove.forEach(el => el.remove())
 
         const mainContent = document.querySelector('main, article, .content, #content')
+        // @ts-ignore
         return mainContent ? mainContent.innerText : document.body.innerText
       })
 

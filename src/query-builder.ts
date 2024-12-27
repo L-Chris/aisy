@@ -8,6 +8,7 @@ interface QueryBuilderOptions {
 
 export interface Query {
   text: string
+  text_template?: string
   platform?: 'xiaohongshu' | 'bing' | 'baidu'
   commands?: string[]
 }

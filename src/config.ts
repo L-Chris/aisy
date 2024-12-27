@@ -51,13 +51,13 @@ export const defaultConfig: Config = {
         apiKey: process.env.DOUBAO_API_KEY || '',
         endpoint: process.env.DOUBAO_ENDPOINT || '',
         model: 'doubao'
-      },
-      {
-        type: 'glm',
-        apiKey: process.env.GLM_API_KEY || '',
-        endpoint: process.env.GLM_ENDPOINT || '',
-        model: 'glm4'
       }
+      // {
+      //   type: 'glm',
+      //   apiKey: process.env.GLM_API_KEY || '',
+      //   endpoint: process.env.GLM_ENDPOINT || '',
+      //   model: 'glm4'
+      // }
     ]
   },
   searchEngine: 'baidu',
